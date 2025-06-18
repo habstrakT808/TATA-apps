@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "244660030535",
+    "project_id": "printing-commerce",
+    "storage_bucket": "printing-commerce.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:244660030535:android:d53cf1648197ffc5843562",
+        "android_client_info": {
+          "package_name": "com.example.tataapps"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRJhzurQvYTg2YGw5kyQ6ECl-Zmt1z9tI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

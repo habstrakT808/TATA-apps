@@ -1,0 +1,629 @@
+:root{
+    --biru-tua: #201658;
+}
+html {
+    scroll-behavior: smooth;
+}
+body{
+    margin: 0px;
+    user-select: none;
+    color: var(--biru-tua);
+    font-family: 'Roboto', sans-serif;
+}
+a:link,
+a:visited {
+    color: var(--biru-tua);
+    text-decoration: none;
+}
+img{
+    pointer-events: none;
+}
+header{
+    top: 0px;
+    position:sticky;
+    width: 100%;
+    height: 70px;
+    display: flex;
+    align-items: center;
+    gap:100px;
+    z-index: 999;
+    background-color: #fff;
+    scroll-padding-top: 70px;
+}
+header h1{
+    margin:0;
+    margin-left:100px;
+    letter-spacing: 1px;
+    font-size: 40px;
+}
+header li{
+    display: flex;
+    gap:40px;
+}
+header li a{
+    font-size: 20px;
+    text-decoration: none;
+}
+header li a:hover{
+    color: red;
+}
+header li a.active{
+    color: red;
+}
+main, section {
+    padding-top: 70px;
+}
+
+#beranda{
+    height: 100vh;
+    display: flex;
+    flex-direction: row;
+}
+#beranda img{
+    width: 500px;
+    height: 500px;
+}
+#beranda div{
+    margin-left:75px;
+    margin-top: 50px;
+    display: flex;
+    flex-direction: column;
+    width: 65%;
+}
+#beranda div h1{
+    color: var(--biru-tua);
+    margin: 0;
+    width: 10%;
+    font-size: 70px;
+}
+#beranda div span{
+    color: var(--biru-tua);
+    margin-top: 50px;
+    font-size: 20px;
+}
+#beranda div button{
+    margin-top: 75px;
+    width:225px;
+    height: 70px;
+    background-color: var(--biru-tua);
+    display: flex;
+    align-items: center;
+    justify-content:center;
+    gap:10px;
+    border-radius: 15px;
+    border-width: 0px;
+    cursor: pointer;
+}
+#beranda div button img{
+    width: 40px;
+    height: 40px;
+}
+#beranda div button span{
+    color: #fff;
+    text-wrap: nowrap;
+    margin-top: 0px;
+}
+
+section ul a:active{
+    color: var(--biru-tua);
+}
+#artikel div, #artikel ul{
+    display: flex;
+}
+#artikel div{
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    justify-content: space-between;
+}
+#artikel div h1, #artikel div a{
+    margin: 0px;
+}
+#artikel div h1{
+    font-size: 26px;
+}
+#artikel div a{
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    right: 0px;
+    font-size: 18px;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--biru-tua);
+}
+#artikel div a img{
+    width: 25px;
+    height: 25px;
+}
+#artikel ul{
+    position: relative;
+    left:50%;
+    transform: translateX(-50%);
+    margin: 0px;
+    margin-top: 20px;
+    gap:20px;
+    margin-bottom:50px;
+    display: flex;
+    justify-content: space-between;
+}
+#artikel ul li{
+    position: relative;
+    display: flex;
+    width:31%;
+    left:0%;
+    border-radius: 10px;
+    background-color: #fff;
+}
+#artikel ul li:has(.card-loading) span,
+#artikel ul li:has(.card-loading) h3,
+#artikel ul li:has(.card-loading) p{
+    color: #fff;
+}
+#artikel ul li:not(:has(.card-loading)):hover {
+    background-color: var(--biru-tua);
+}
+#artikel ul li:not(:has(.card-loading)):hover span,
+#artikel ul li:not(:has(.card-loading)):hover h3,
+#artikel ul li:not(:has(.card-loading)):hover p{
+    color: #fff;
+}
+#artikel ul li .card-loading{
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    background-color: #fff;
+    width: 100%;
+}
+/* for skeleton */
+.card-loading div,  .card-loading span,  .card-loading h3,  .card-loading p {
+    background: linear-gradient(135deg, #b9b9b9 0%, #cdcdcd 52%, #fff 52%, #fff 54%, #cdcdcd 54%, #b9b9b9 100%);
+    background-size: 180% 180%;
+    background-position: 100% 100%;
+    animation: 2.5s shine ease-in infinite;
+    animation-delay: 0.25s;
+}
+@keyframes shine {
+    to {
+        background-position: 0% 0%;
+    }
+}
+/* for img */
+.card-loading div{
+    margin-top: 15px;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 10px;
+    width: 90%;
+    height: 300px;
+}
+/* for date */
+.card-loading span{
+    position: relative;
+    left: 55%;
+    display: block;
+    margin: 0px;
+    width: 40%;
+    height: 25px;
+    margin-top: 15px;
+    border-radius: 5px;
+}
+/* for header */
+.card-loading h3{
+    margin: 0px;
+    position: relative;
+    border-radius: 7px;
+    left: 5%;
+    width: 80%;
+    height: 35px;
+    margin-top: 20px;
+}
+
+#artikel ul li a{
+    margin-bottom: 0px;
+    background-color: transparent;
+    display: flex;
+    position: relative;;
+    flex-direction: column;
+    cursor: pointer;
+    text-decoration: none;
+}
+#artikel ul li a img{
+    object-fit: cover;
+    margin-top: 15px;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 10px;
+    width: 90%;
+    height: 300px;
+}
+#artikel ul li a span.tanggal{
+    width: 93%;
+    text-align: right;
+    margin-top: 20px;
+    font-size: 18px;
+    position: relative;
+    right: 0px;
+}
+#artikel ul li a h3{
+    margin: 0px;
+    position: relative;
+    left: 5%;
+    width: 70%;
+    font-size: 22px;
+    margin-top: 15px;
+    margin-bottom: 20px;
+}
+
+footer{
+    width: 100%;
+    height: 50px;
+    background-color: var(--biru-tua);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+footer span{
+    color: #fff;
+    font-size: 15px;
+    font-weight: 500;
+}
+@media screen and (min-width: 615px) and (max-width: 1000px) {
+    header{
+        height: 50px;
+        gap:50px;
+        scroll-padding-top: 50px;
+    }
+    header h1{
+        margin-left: 50px;
+        font-size: 30px;
+    }
+    header li{
+        display: flex;
+        gap:25px;
+    }
+    header li a{
+        font-size: 18px;
+    }
+    main, section {
+        padding-top: 50px;
+    }
+
+    #beranda{
+        height: 85vh;
+    }
+    #beranda img{
+        width: 350px;
+        height: 350px;
+    }
+    #beranda div{
+        margin-left:35px;
+        margin-top: 10px;
+        width: 75%;
+    }
+    #beranda div h1{
+        font-size: 45px;
+    }
+    #beranda div span{
+        margin-top: 40px;
+        font-size: 17px;
+    }
+    #beranda div button{
+        margin-top: 30px;
+        width:165px;
+        height: 50px;
+        gap:7px;
+        border-radius: 12px;
+    }
+    #beranda div button img{
+        width: 27px;
+        height: 27px;
+    }
+    #beranda div button span{
+        font-size: 16px;
+        margin-top: 0px;
+    }
+
+    /* for img */
+    .card-loading div{
+        margin-top: 15px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-radius: 10px;
+        width: 90%;
+        height: 120px;
+    }
+    /* for date */
+    .card-loading span{
+        margin-top: 20px;
+        height: 17px;
+    }
+    /* for header */
+    .card-loading h3{
+        width: 70%;
+        margin-top: 12px;
+    }
+    #artikel{
+        margin-top: 20px;
+        margin-bottom: 50px;
+        height: 80vh;
+    }
+    #artikel div h1{
+        font-size: 20px;
+    }
+    #artikel div select{
+        gap: 5px;
+        font-size: 16px;
+    }
+    #artikel ul{
+        margin-top: 10px;
+    }
+    #artikel ul li a h3{
+        left: 5%;
+        transform: translateX(0%);
+        width: 70%;
+        font-size: 15px;
+    }
+    #artikel ul li a span.tanggal{
+        font-size: 15px;
+    }
+    #artikel ul li a img{
+        height: 120px;
+    }
+}
+@media screen and (min-width: 400px) and (max-width: 615px) {
+    header{
+        height: 40px;
+        gap:40px;
+        scroll-padding-top: 40px;
+    }
+    header h1{
+        margin-left: 24px;
+        font-size: 27px;
+    }
+    header li{
+        display: flex;
+        gap:20px;
+    }
+    header li a{
+        font-size: 17px;
+    }
+    main, section {
+        padding-top: 40px;
+    }
+
+    #beranda{
+        height: 100vh;
+        flex-direction :column-reverse;
+        align-items: center;
+    }
+    #beranda img{
+        width: 400px;
+        height: 400px;
+    }
+    #beranda div{
+        margin-left: 0px;
+        margin-top: 10px;
+        width: 90%;
+    }
+    #beranda div h1{
+        font-size: 40px;
+    }
+    #beranda div span{
+        margin-top: 15px;
+        font-size: 16px;
+    }
+    #beranda div button{
+        margin-top: 25px;
+        width:140px;
+        height: 40px;
+        gap:5px;
+        border-radius: 9px;
+    }
+    #beranda div button img{
+        width: 22px;
+        height: 22px;
+    }
+    #beranda div button span{
+        font-size: 14px;
+        margin-top: 0px;
+    }
+
+    /* for img */
+    .card-loading div{
+        margin-top: 15px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 90%;
+        height: 125px;
+    }
+    /* for date */
+    .card-loading span{
+        margin-top: 10px;
+        height: 13px;
+    }
+    /* for header */
+    .card-loading h3{
+        width: 60%;
+        height: 25px;
+        margin-top: 15px;
+        border-radius: 7px;
+    }
+    #artikel{
+        margin-top: 20px;
+        margin-bottom: 30px;
+    }
+    #artikel div h1{
+        font-size: 20px;
+    }
+    #artikel div select{
+        gap: 5px;
+        font-size: 15px;
+    }
+    #artikel ul{
+        width: 94%;
+        padding: 0px;
+        margin-top: 10px;
+        gap:10px;
+    }
+    #artikel ul li{
+        width:47%;
+    }
+    #artikel ul li a h3{
+        left: 5%;
+        transform: translateX(0%);
+        width: 75%;
+        margin-top: 10px;
+        font-size: 14px;
+        margin-bottom: 20px;
+        font-weight: 600;
+    }
+    #artikel ul li a span.tanggal{
+        margin-top: 10px;
+        font-size: 13px;
+    }
+    #artikel ul li a img{
+        height: 125px;
+    }
+
+    footer{
+        height: 40px;
+    }
+    footer span{
+        font-size: 13px;
+    }
+}
+@media screen and (max-width: 400px) {
+    header{
+        height: 30px;
+        gap:20px;
+        scroll-padding-top: 30px;
+    }
+    header h1{
+        margin-left: 15px;
+        font-size: 24px;
+    }
+    header li{
+        display: flex;
+        gap:10px;
+    }
+    header li a{
+        font-size: 14px;
+    }
+    main, section {
+        padding-top: 30px;
+    }
+
+    #beranda{
+        height: 100vh;
+        flex-direction :column-reverse;
+        align-items: center;
+        padding-top: 0px;
+    }
+    #beranda img{
+        width: 330px;
+        height: 330px;
+    }
+    #beranda div{
+        margin-left: 0px;
+        margin-top: 100px;
+        width: 90%;
+    }
+    #beranda div h1{
+        font-size: 30px;
+    }
+    #beranda div span{
+        margin-top: 7px;
+        font-size: 14px;
+    }
+    #beranda div button{
+        margin-top: 17px;
+        width:140px;
+        height: 40px;
+        gap:5px;
+        border-radius: 9px;
+    }
+    #beranda div button img{
+        width: 22px;
+        height: 22px;
+    }
+    #beranda div button span{
+        font-size: 14px;
+        margin-top: 0px;
+    }
+
+    /* for img */
+    .card-loading div{
+        margin-top: 6px;
+        border-radius: 6px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-radius: 10px;
+        width: 90%;
+        height: 80px;
+    }
+    /* for date */
+    .card-loading span{
+        margin-top: 7px;
+        height: 13px;
+    }
+    /* for header */
+    .card-loading h3{
+        border-radius: 7px;
+        margin-top: 7px;
+    }
+    #artikel div h1{
+        font-size: 17px;
+    }
+    #artikel div a{
+        font-size: 13px;
+    }
+    #artikel div a img{
+        width: 14px;
+        height: 14px;
+    }
+    #artikel ul{
+        width: 95%;
+        padding: 0px;
+        margin-top: 10px;
+        margin-bottom: 10px;
+        gap:10px;
+    }
+    #artikel ul li{
+        width:47%;
+        border-radius: 6px;
+    }
+    #artikel ul li a img{
+        margin-top: 6px;
+        border-radius: 6px;
+        height: 80px;
+    }
+    #artikel ul li a h3{
+        position: relative;
+        left: 5%;
+        transform: translateX(0%);
+        width: 75%;
+        margin-top: 7px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+    #artikel ul li a span.tanggal{
+        margin-top: 7px;
+        font-size: 10px;
+    }
+    #artikel{
+        margin-top: 10px;
+        margin-bottom: 20px;
+    }
+
+    footer{
+        height: 25px;
+    }
+    footer span{
+        font-size: 10px;
+    }
+}

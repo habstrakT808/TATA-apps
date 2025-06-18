@@ -1,0 +1,7 @@
+{"flutter":{"platforms":{"android":{"default":{"projectId":"printing-commerce","appId":"1:244660030535:android:d53cf1648197ffc5843562","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"printing-commerce","configurations":{"android":"1:244660030535:android:d53cf1648197ffc5843562","ios":"1:244660030535:ios:c85cb463df397eff843562","macos":"1:244660030535:ios:c85cb463df397eff843562","web":"1:244660030535:web:ee21e126b63aa82c843562","windows":"1:244660030535:web:3340b70f50c4fbd9843562"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}
