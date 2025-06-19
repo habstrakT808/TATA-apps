@@ -45,20 +45,37 @@ $tPath = app()->environment('local') ? '' : '';
         .image-gallery {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 15px;
+            padding: 15px;
             margin-bottom: 20px;
         }
-        .gallery-item {
+        .image-item {
             width: 150px;
             height: 150px;
-            position: relative;
+            border: 1px solid #ddd;
             border-radius: 4px;
             overflow: hidden;
+            position: relative;
         }
-        .gallery-item img {
+        .image-item img {
             width: 100%;
             height: 100%;
             object-fit: cover;
+        }
+        .remove-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: rgba(255, 0, 0, 0.7);
+            color: white;
+            border: none;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
         }
         .add-image-btn {
             width: 150px;
@@ -67,15 +84,18 @@ $tPath = app()->environment('local') ? '' : '';
             border-radius: 4px;
             display: flex;
             flex-direction: column;
-            align-items: center;
             justify-content: center;
+            align-items: center;
             cursor: pointer;
-            color: #666;
-            transition: all 0.3s ease;
+            color: #777;
         }
-        .add-image-btn:hover {
-            border-color: #4CAF50;
-            color: #4CAF50;
+        .add-image-btn i {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+            padding: 0 15px;
         }
         .btn-primary {
             background: #4CAF50;
@@ -97,38 +117,21 @@ $tPath = app()->environment('local') ? '' : '';
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 16px;
+            margin-bottom: 20px;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
         }
         .btn-add-new {
-            background: #4CAF50;
+            background-color: #00C4FF;
             color: white;
             border: none;
-            padding: 6px 12px;
+            padding: 8px 15px;
             border-radius: 4px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 14px;
+            cursor: pointer;
         }
         textarea.form-control {
             min-height: 100px;
             resize: vertical;
-        }
-        .remove-btn {
-            position: absolute;
-            top: 5px;
-            right: 5px;
-            background: rgba(255, 0, 0, 0.7);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 25px;
-            height: 25px;
-            font-size: 14px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
         .image-preview-container {
             display: flex;

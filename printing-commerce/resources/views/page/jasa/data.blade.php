@@ -206,9 +206,6 @@ $tPath = app()->environment('local') ? '' : '';
                 <div class="d-flex align-items-stretch">
                     <div class="card w-100">
                         <div class="card-body p-4">
-                            <div class="alert alert-info mb-3">
-                                <strong>Info!</strong> Aplikasi ini hanya mendukung 3 jasa utama: Desain Logo, Desain Poster, dan Desain Banner.
-                            </div>
                             <div class="d-flex justify-content-end mb-3">
                                 <a href="/jasa/tambah" class="btn btn-success" id="btnTambah" style="background-color: #00C4FF; border-color: #00C4FF;">
                                     <img src="{{ asset($tPath.'assets2/icon/plus.svg') }}" alt="">
