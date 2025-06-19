@@ -39,6 +39,7 @@ class DatabaseSeeder extends Seeder
         $this->call(RevisiSeeder::class);
         $this->call(TransaksiSeeder::class);
         $this->call(ReviewSeeder::class);
+        $this->call(DashboardSeeder::class);
         unlink(self::$tempFile);
         if(is_dir($directory) && count(scandir($directory)) === 2){
             rmdir($directory);
