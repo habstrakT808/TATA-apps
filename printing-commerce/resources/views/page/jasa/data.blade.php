@@ -206,6 +206,15 @@ $tPath = app()->environment('local') ? '' : '';
                 <div class="d-flex align-items-stretch">
                     <div class="card w-100">
                         <div class="card-body p-4">
+                            <div class="alert alert-info mb-3">
+                                <strong>Info!</strong> Aplikasi ini hanya mendukung 3 jasa utama: Desain Logo, Desain Poster, dan Desain Banner.
+                            </div>
+                            <div class="d-flex justify-content-end mb-3">
+                                <a href="/jasa/tambah" class="btn btn-success" id="btnTambah" style="background-color: #00C4FF; border-color: #00C4FF;">
+                                    <img src="{{ asset($tPath.'assets2/icon/plus.svg') }}" alt="">
+                                    Tambah Jasa
+                                </a>
+                            </div>
                             <div class="table-responsive">
                                 <table class="table mb-0 align-middle">
                                     <thead class="text-dark fs-4">
@@ -214,7 +223,7 @@ $tPath = app()->environment('local') ? '' : '';
                                                 <h6 class="fw-semibold mb-0">No</h6>
                                             </th>
                                             <th class="border-bottom-0">
-                                                <h6 class="fw-semibold mb-0">Kategori</h6>
+                                                <h6 class="fw-semibold mb-0">Nama Jasa</h6>
                                             </th>
                                             <th class="border-bottom-0">
                                                 <h6 class="fw-semibold mb-0">Aksi</h6>
@@ -229,13 +238,16 @@ $tPath = app()->environment('local') ? '' : '';
                                                 <h6 class="fw-semibold mb-0">{{ $no++ }}</h6>
                                             </td>
                                             <td class="border-bottom-0">
-                                                <span class="fw-normal">{{ $data['kategori'] }}
+                                                <span class="fw-normal">{{ $data['display_name'] }}
                                                 </span>
                                             </td>
                                             <td class="border-bottom-0">
                                                 <a href="/jasa/edit/{{ $data['uuid'] }}" class="btn btn-warning btn-edit m-1" style="width: fit-content; height: fit-content; padding: 12px;">
                                                     <img src="{{ asset($tPath.'assets2/icon/edit.svg') }}" alt="">
                                                 </a>
+                                                <button class="btn btn-danger btn-delete m-1" style="width: fit-content; height: fit-content; padding: 12px;" onclick="showModalDelete('{{ $data['uuid'] }}')">
+                                                    <img src="{{ asset($tPath.'assets2/icon/delete.svg') }}" alt="">
+                                                </button>
                                             </td>
                                         </tr>
                                         @endforeach

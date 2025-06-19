@@ -10,13 +10,31 @@ use App\Http\Controllers\UtilityController;
 class JasaController extends Controller
 {
     public function showAll(Request $request){
+        $jasaData = Jasa::select('uuid','kategori')->get()->map(function($jasa) {
+            $displayName = 'Desain ' . ucfirst($jasa->kategori);
+            return [
+                'uuid' => $jasa->uuid,
+                'kategori' => $jasa->kategori,
+                'display_name' => $displayName
+            ];
+        });
+        
         $dataShow = [
-            'jasaData' => Jasa::select('uuid','kategori')->get(),
+            'jasaData' => $jasaData,
             'headerData' => UtilityController::getHeaderData(),
             'userAuth' => array_merge(Admin::where('id_auth', $request->user()['id_auth'])->first()->toArray(), ['role' => $request->user()['role']]),
         ];
         return view('page.jasa.data',$dataShow);
     }
+    
+    public function showTambah(Request $request){
+        $dataShow = [
+            'headerData' => UtilityController::getHeaderData(),
+            'userAuth' => array_merge(Admin::where('id_auth', $request->user()['id_auth'])->first()->toArray(), ['role' => $request->user()['role']]),
+        ];
+        return view('page.jasa.tambah',$dataShow);
+    }
+    
     public function showEdit(Request $request, $uuid){
         $jasa = Jasa::where('uuid', $uuid)->first();
         
@@ -32,6 +50,7 @@ class JasaController extends Controller
             'uuid' => $jasa->uuid,
             'deskripsi_jasa' => $jasa->deskripsi_jasa,
             'kategori' => $jasa->kategori,
+            'display_name' => 'Desain ' . ucfirst($jasa->kategori),
             "paket_jasa" => PaketJasa::where('id_jasa', $jasa->id_jasa)->get(),
             'images' => JasaImage::where('id_jasa', $jasa->id_jasa)->get()
         ];
