@@ -370,14 +370,26 @@ $tPath = app()->environment('local') ? '' : '';
                         </div>
 
                         <div class="image-gallery" id="imageGallery">
-                            @foreach($jasa['images'] as $image)
-                                <div class="image-item">
-                                    <img src="{{ asset($tPath.'assets3/img/jasa/'.$jasa['kategori'].'/'.$image->image_path) }}" alt="Gallery Image">
-                                    <button type="button" class="remove-btn" onclick="deleteImage(this, {{ $image->id_jasa_image }})">
-                                        <i class="fas fa-times"></i>
-                                    </button>
+                            @if(count($jasa['images']) > 0)
+                                @foreach($jasa['images'] as $image)
+                                    <div class="image-item">
+                                        <img src="{{ asset($tPath.'assets3/img/jasa/'.$jasa['kategori'].'/'.$image->image_path) }}" alt="Gallery Image">
+                                        <button type="button" class="remove-btn" onclick="deleteImage(this, {{ $image->id_jasa_image }})">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                @endforeach
+                            @else
+                                <div class="image-item placeholder-image">
+                                    @if($jasa['kategori'] == 'logo')
+                                        <img src="{{ asset($tPath.'assets3/img/jasa/logo/placeholder_logo.jpg') }}" alt="Gallery Image">
+                                    @elseif($jasa['kategori'] == 'poster')
+                                        <img src="{{ asset($tPath.'assets3/img/jasa/poster/placeholder_poster.jpg') }}" alt="Gallery Image">
+                                    @elseif($jasa['kategori'] == 'banner')
+                                        <img src="{{ asset($tPath.'assets3/img/jasa/banner/placeholder_banner.jpg') }}" alt="Gallery Image">
+                                    @endif
                                 </div>
-                            @endforeach
+                            @endif
                             
                             @if(count($jasa['images']) < 5)
                                 <div class="add-image-btn" onclick="document.getElementById('inpImages').click()">
@@ -473,7 +485,7 @@ $tPath = app()->environment('local') ? '' : '';
             const addButton = gallery.querySelector('.add-image-btn');
             
             // Check if adding these files would exceed the 5 image limit
-            const currentImageCount = gallery.querySelectorAll('.gallery-item').length - 1; // -1 to exclude the add button
+            const currentImageCount = gallery.querySelectorAll('.image-item').length - 1; // -1 to exclude the add button
             const newImageCount = files.length;
             
             if (currentImageCount + newImageCount > 5) {
@@ -491,7 +503,7 @@ $tPath = app()->environment('local') ? '' : '';
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const galleryItem = document.createElement('div');
-                    galleryItem.className = 'gallery-item';
+                    galleryItem.className = 'image-item';
                     galleryItem.dataset.new = 'true';
                     galleryItem.dataset.filename = file.name; // Store filename for reference
                     
@@ -523,8 +535,29 @@ $tPath = app()->environment('local') ? '' : '';
             event.target.value = '';
             
             // Hide add button if we've reached 5 images
-            if (gallery.querySelectorAll('.gallery-item').length - 1 >= 5) {
+            if (gallery.querySelectorAll('.image-item').length - 1 >= 5) {
                 addButton.style.display = 'none';
+            }
+        }
+
+        function deleteImage(button, imageId) {
+            const item = button.parentElement;
+            const gallery = document.getElementById('imageGallery');
+            const addButton = gallery.querySelector('.add-image-btn');
+            
+            // Add to deletedImageIds
+            deletedImageIds.push(imageId);
+            document.getElementById('deletedImages').value = JSON.stringify(deletedImageIds);
+            
+            // Mark data as changed
+            dataChanged = true;
+            
+            // Remove the item from DOM
+            item.remove();
+            
+            // Show add button if we now have fewer than 5 images
+            if (gallery.querySelectorAll('.image-item').length < 5) {
+                addButton.style.display = 'block';
             }
         }
 
@@ -553,7 +586,7 @@ $tPath = app()->environment('local') ? '' : '';
             item.remove();
             
             // Show add button if we now have fewer than 5 images
-            if (gallery.querySelectorAll('.gallery-item').length - 1 < 5) {
+            if (gallery.querySelectorAll('.image-item').length < 5) {
                 addButton.style.display = 'block';
             }
         }

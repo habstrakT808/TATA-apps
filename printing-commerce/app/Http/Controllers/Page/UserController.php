@@ -6,6 +6,9 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\UtilityController;
 use App\Models\User;
 use App\Models\Admin;
+use App\Models\Auth;
+use Illuminate\Support\Facades\Log;
+
 class UserController extends Controller
 {
     public function showAll(Request $request){
@@ -42,5 +45,43 @@ class UserController extends Controller
             'userAuth' => array_merge(Admin::where('id_auth', $request->user()['id_auth'])->first()->toArray(), ['role' => $request->user()['role']]),
         ];
         return view('page.user.detail',$dataShow);
+    }
+
+    public function deleteUser(Request $request) {
+        Log::info('UserController::deleteUser request payload', $request->all());
+        
+        $validator = \Illuminate\Support\Facades\Validator::make($request->only('uuid'), [
+            'uuid' => 'required',
+        ], [
+            'uuid.required' => 'User ID wajib di isi',
+        ]);
+        
+        if ($validator->fails()){
+            $errors = [];
+            foreach ($validator->errors()->toArray() as $field => $errorMessages){
+                $errors[$field] = $errorMessages[0];
+                break;
+            }
+            return response()->json(['status' => 'error', 'message' => implode(', ', $errors)], 400);
+        }
+        
+        // First get the user record
+        $user = User::where('uuid', $request->input('uuid'))->first();
+        if (!$user) {
+            return response()->json(['status' => 'error', 'message' => 'User tidak ditemukan'], 404);
+        }
+        
+        // Store the id_auth
+        $id_auth = $user->id_auth;
+        
+        // Delete the user record
+        if(!User::where('uuid', $request->input('uuid'))->delete()){
+            return response()->json(['status' => 'error', 'message' => 'Gagal menghapus data User'], 500);
+        }
+        
+        // Delete the corresponding auth record
+        Auth::where('id_auth', $id_auth)->delete();
+        
+        return response()->json(['status' => 'success', 'message' => 'Data User berhasil dihapus']);
     }
 }

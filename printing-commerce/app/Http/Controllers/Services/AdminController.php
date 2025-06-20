@@ -3,6 +3,7 @@ namespace App\Http\Controllers\Services;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Models\Auth;
@@ -10,9 +11,10 @@ use App\Models\Admin;
 class AdminController extends Controller
 {
     public function createAdmin(Request $rt){
-        $validator = Validator::make($rt->only('email', 'nama_admin', 'role', 'password'), [
+        $validator = Validator::make($rt->only('email', 'nama_admin', 'no_telpon', 'role', 'password'), [
             'email'=>'required|email',
             'nama_admin' => 'required|min:3|max:50',
+            'no_telpon' => 'nullable|string|max:15',
             'role' => 'required|in:super_admin,admin_chat,admin_pemesanan',
             'password' => [
                 'required',
@@ -27,6 +29,7 @@ class AdminController extends Controller
             'nama_admin.required' => 'Nama admin wajib di isi',
             'nama_admin.min'=>'Nama admin minimal 3 karakter',
             'nama_admin.max' => 'Nama admin maksimal 50 karakter',
+            'no_telpon.max' => 'No Telpon maksimal 15 karakter',
             'role.required' => 'Role admin harus di isi',
             'role.in' => 'Role admin tidak valid',
             'password.required'=>'Password wajib di isi',
@@ -53,6 +56,7 @@ class AdminController extends Controller
         $ins = Admin::insert([
             'uuid' =>  Str::uuid(),
             'nama_admin' => $rt->input('nama_admin'),
+            'no_telpon' => $rt->input('no_telpon'),
             'id_auth' => $idAuth,
         ]);
         if(!$ins){
@@ -61,10 +65,14 @@ class AdminController extends Controller
         return response()->json(['status'=>'success','message'=>'Data Admin berhasil ditambahkan']);
     }
     public function updateAdmin(Request $rt){
-        $validator = Validator::make($rt->only('uuid', 'email','nama_admin', 'role', 'password'), [
-            'uuid'=>'required|email',
-            'email'=>'nullable|email',
+        // Log request payload for debugging
+        Log::info('AdminController::updateAdmin request payload', $rt->all());
+        
+        $validator = Validator::make($rt->only('uuid', 'email', 'nama_admin', 'no_telpon', 'role', 'password'), [
+            'uuid'=>'required',
+            'email'=>'required|email',
             'nama_admin' => 'required|min:3|max:50',
+            'no_telpon' => 'nullable|string|max:15',
             'role' => 'required|in:super_admin,admin_chat,admin_pemesanan',
             'password' => [
                 'nullable',
@@ -75,14 +83,16 @@ class AdminController extends Controller
             ],
         ],[
             'uuid.required'=>'Admin ID wajib di isi',
+            'email.required'=>'Email wajib di isi',
             'email.email'=>'Email yang anda masukkan invalid',
             'nama_admin.required' => 'Nama admin wajib di isi',
             'nama_admin.min'=>'Nama admin minimal 3 karakter',
             'nama_admin.max' => 'Nama admin maksimal 50 karakter',
+            'no_telpon.max' => 'No Telpon maksimal 15 karakter',
             'role.required' => 'Role admin harus di isi',
             'role.in' => 'Role admin tidak valid',
             'password.min'=>'Password minimal 8 karakter',
-            'password.max'=>'Password maksimal 50 karakter',
+            'password.max'=>'Password maksimal 25 karakter',
             'password.regex'=>'Password terdiri dari 1 huruf besar, huruf kecil, angka dan karakter unik',
         ]);
         if($validator->fails()){
@@ -93,24 +103,44 @@ class AdminController extends Controller
             }
             return response()->json(['status' => 'error', 'message' => implode(', ', $errors)], 400);
         }
-        $admin = Admin::select('auth.id_auth', 'auth.password', 'auth.role', 'admin.foto')->where('uuid',$rt->input('uuid'))->join('auth', 'admin.id_auth', '=', 'auth.id_auth')->firstOrFail();
-        if(!is_null($rt->input('email') || !empty($rt->input('email'))) && $rt->input('email') != $admin['email'] && Auth::whereRaw("BINARY email = ?",[$rt->input('email')])->exists()){
+        
+        $admin = Admin::select('admin.id_auth', 'auth.email', 'auth.password', 'auth.role')
+                ->where('uuid', $rt->input('uuid'))
+                ->join('auth', 'admin.id_auth', '=', 'auth.id_auth')
+                ->first();
+                
+        if (!$admin) {
+            return response()->json(['status' => 'error', 'message' => 'Admin tidak ditemukan'], 404);
+        }
+        
+        // Check if email already exists for another user
+        if($rt->input('email') != $admin->email && 
+           Auth::where('email', $rt->input('email'))
+                ->where('id_auth', '!=', $admin->id_auth)
+                ->exists()) {
             return response()->json(['status' => 'error', 'message' => 'Email sudah digunakan'], 400);
         }
-        if(!is_null($rt->input('role')) && !empty($rt->input('role')) && !in_array($rt->input('role'), ['super_admin', 'admin_chat', 'admin_pemesanan'])){
-            return response()->json(['status' => 'error', 'message' => 'Invalid Role'], 400);
+        
+        $updateData = [
+            'email' => $rt->input('email'),
+            'role' => $rt->input('role')
+        ];
+        
+        if (!empty($rt->input('password'))) {
+            $updateData['password'] = Hash::make($rt->input('password'));
         }
-        $uT = Auth::where('id_auth', $admin['id_auth'])->update([
-            'email' => (empty($rt->input('email')) || is_null($rt->input('email'))) ? $admin['email'] : $rt->input('email'),
-            'password' => (empty($rt->input('password')) || is_null($rt->input('password'))) ? $admin['password']: Hash::make($rt->input('password')),
-            'role' => (empty($rt->input('role')) || is_null($rt->input('role'))) ? $admin['role'] : $rt->input('role'),
+        
+        $uT = Auth::where('id_auth', $admin->id_auth)->update($updateData);
+        
+        $uA = Admin::where('id_auth', $admin->id_auth)->update([
+            'nama_admin' => $rt->input('nama_admin'),
+            'no_telpon' => $rt->input('no_telpon'),
         ]);
-        $uA = Admin::where('id_auth', $admin['id_auth'])->update([
-            'nama_admin'=>$rt->input('nama_admin'),
-        ]);
+        
         if(!$uT || !$uA){
             return response()->json(['status' => 'error', 'message' => 'Gagal memperbarui data Admin'], 500);
         }
+        
         return response()->json(['status'=>'success','message'=>'Data Admin berhasil diperbarui']);
     }
     public function updateProfile(Request $rt){
@@ -216,9 +246,24 @@ class AdminController extends Controller
             }
             return response()->json(['status' => 'error', 'message' => implode(', ', $errors)], 400);
         }
-        if(!Admin::where('uuid',$rt->input('uuid'))->delete()){
+        
+        // First get the admin record
+        $admin = Admin::where('uuid', $rt->input('uuid'))->first();
+        if (!$admin) {
+            return response()->json(['status' => 'error', 'message' => 'Admin tidak ditemukan'], 404);
+        }
+        
+        // Store the id_auth
+        $id_auth = $admin->id_auth;
+        
+        // Delete the admin record
+        if(!Admin::where('uuid', $rt->input('uuid'))->delete()){
             return response()->json(['status' => 'error', 'message' => 'Gagal menghapus data Admin'], 500);
         }
+        
+        // Delete the corresponding auth record
+        Auth::where('id_auth', $id_auth)->delete();
+        
         return response()->json(['status' => 'success', 'message' => 'Data Admin berhasil dihapus']);
     }
     public function logout(Request $rt){

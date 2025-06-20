@@ -54,7 +54,7 @@ class JasaFinalCleanupSeeder extends Seeder
         }
         
         // Truncate tables
-        DB::table('jasa_image')->truncate();
+        DB::table('jasa_images')->truncate();
         DB::table('paket_jasa')->truncate();
         DB::table('jasa')->truncate();
         

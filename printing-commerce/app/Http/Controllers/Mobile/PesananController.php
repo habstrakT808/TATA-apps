@@ -17,67 +17,86 @@ use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use App\Models\MetodePembayaran;
+use App\Http\Controllers\Mobile\ChatController;
 
 class PesananController extends Controller
 {
     public function dirPath($idPesanan){
         if(env('APP_ENV', 'local') == 'local'){
-            return public_path('assets3/img/pesanan/' . $idPesanan);
+            $path = public_path('assets3/img/pesanan/' . $idPesanan);
         }else{
             $path = env('PUBLIC_PATH', '/../public_html');
-            return base_path($path == '/../public_html' ? $path : '/../public_html') .'/assets3/img/pesanan/' . $idPesanan;
+            $path = base_path($path == '/../public_html' ? $path : '/../public_html') .'/assets3/img/pesanan/' . $idPesanan;
         }
+        
+        // Create directory if it doesn't exist
+        if (!file_exists(dirname($path))) {
+            mkdir(dirname($path), 0755, true);
+        }
+        
+        return $path;
     }
-public function getAll(Request $request)
-{
-    try {
-        // Ambil ID user dari ID auth
-        $idUser = User::where('id_auth', $request->user()->id_auth)->value('id_user');
 
-        if (!$idUser) {
+    public function getAll(Request $request)
+    {
+        try {
+            // Check if user exists
+            if (!$request->user() || !$request->user()->id_auth) {
+                Log::error('User not authenticated or id_auth is null');
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Anda perlu login kembali'
+                ], 401);
+            }
+            
+            // Get user ID safely
+            $user = User::where('id_auth', $request->user()->id_auth)->first();
+            if (!$user) {
+                Log::error('User not found for auth ID: ' . $request->user()->id_auth);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak ditemukan, silakan login kembali'
+                ], 404);
+            }
+            $userId = $user->id_user;
+
+            $pesanan = Pesanan::select(
+                    'pesanan.id_pesanan', 
+                    'pesanan.uuid', 
+                    'pesanan.deskripsi', 
+                    'pesanan.status_pesanan', 
+                    'paket_jasa.harga_paket_jasa', 
+                    'jasa.kategori', 
+                    'paket_jasa.kelas_jasa', 
+                    'pesanan.estimasi_waktu', 
+                    'catatan_pesanan.gambar_referensi', 
+                    'pesanan.maksimal_revisi', 
+                    'pesanan.created_at', 
+                    'pesanan.updated_at'
+                )
+                ->join('paket_jasa', 'paket_jasa.id_paket_jasa', '=', 'pesanan.id_paket_jasa')
+                ->join('jasa', 'jasa.id_jasa', '=', 'paket_jasa.id_jasa')
+                ->leftJoin('catatan_pesanan', 'catatan_pesanan.id_pesanan', '=', 'pesanan.id_pesanan')
+                ->where('pesanan.id_user', $userId)
+                ->orderBy('pesanan.created_at', 'desc')
+                ->get();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Pesanan berhasil diambil',
+                'data' => $pesanan,
+                'status_pesanan' => ['pending', 'diproses', 'menunggu_editor', 'dibatalkan', 'selesai', 'dikerjakan', 'revisi'],
+                'status_transaksi' => ['belum_bayar', 'menunggu_konfirmasi', 'lunas', 'dibatalkan', 'expired']
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Error retrieving pesanan: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'User tidak ditemukan'
-            ], 404);
+                'message' => 'Gagal mengambil pesanan',
+                'data' => $e->getMessage()
+            ], 500);
         }
-
-        $pesanan = Pesanan::select(
-                'pesanan.id_pesanan', 
-                'pesanan.uuid', 
-                'pesanan.deskripsi', 
-                'pesanan.status_pesanan', 
-                'paket_jasa.harga_paket_jasa', 
-                'jasa.kategori', 
-                'paket_jasa.kelas_jasa', 
-                'pesanan.estimasi_waktu', 
-                'catatan_pesanan.gambar_referensi', 
-                'pesanan.maksimal_revisi', 
-                'pesanan.created_at', 
-                'pesanan.updated_at'
-            )
-            ->join('paket_jasa', 'paket_jasa.id_paket_jasa', '=', 'pesanan.id_paket_jasa')
-            ->join('jasa', 'jasa.id_jasa', '=', 'paket_jasa.id_jasa')
-            ->leftJoin('catatan_pesanan', 'catatan_pesanan.id_pesanan', '=', 'pesanan.id_pesanan')
-            ->where('pesanan.id_user', $idUser)
-            ->orderBy('pesanan.created_at', 'desc')
-            ->get();
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Pesanan berhasil diambil',
-            'data' => $pesanan,
-            'status_pesanan' => ['pending', 'diproses', 'menunggu_editor', 'dibatalkan', 'selesai', 'dikerjakan', 'revisi'],
-            'status_transaksi' => ['belum_bayar', 'menunggu_konfirmasi', 'lunas', 'dibatalkan', 'expired']
-        ], 200);
-    } catch (\Exception $e) {
-        \Log::error('Error retrieving pesanan: ' . $e->getMessage());
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Gagal mengambil pesanan',
-            'data' => $e->getMessage()
-        ], 500);
     }
-}
 
     /**
      * Get detailed pesanan information
@@ -85,6 +104,26 @@ public function getAll(Request $request)
     public function getDetail(Request $request, $uuid)
     {
         try {
+            // Check if user exists
+            if (!$request->user() || !$request->user()->id_auth) {
+                Log::error('User not authenticated or id_auth is null');
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Anda perlu login kembali'
+                ], 401);
+            }
+            
+            // Get user ID safely
+            $user = User::where('id_auth', $request->user()->id_auth)->first();
+            if (!$user) {
+                Log::error('User not found for auth ID: ' . $request->user()->id_auth);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak ditemukan, silakan login kembali'
+                ], 404);
+            }
+            $userId = $user->id_user;
+            
             $pesanan = Pesanan::with([
                 'fromPesananFile', 
                 'fromCatatanPesanan', 
@@ -94,7 +133,7 @@ public function getAll(Request $request)
                 'toEditor'
             ])
                 ->where('uuid', $uuid)
-                ->where('id_user', User::select('id_user')->where('id_auth', $request->user()->id_auth)->first()->id_user)
+                ->where('id_user', $userId)
                 ->first();
 
             if (!$pesanan) {
@@ -119,6 +158,7 @@ public function getAll(Request $request)
             ], 500);
         }
     }
+
     public function createPesananWithTransaction(Request $request){
         try {
             // Validate pesanan data
@@ -148,6 +188,27 @@ public function getAll(Request $request)
                 }
                 return response()->json(['status' => 'error', 'message' => implode(', ', $errors)], 400);
             }
+            
+            // Check if user exists
+            if (!$request->user() || !$request->user()->id_auth) {
+                Log::error('User not authenticated or id_auth is null');
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Anda perlu login kembali'
+                ], 401);
+            }
+            
+            // Get user ID safely
+            $user = User::where('id_auth', $request->user()->id_auth)->first();
+            if (!$user) {
+                Log::error('User not found for auth ID: ' . $request->user()->id_auth);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak ditemukan, silakan login kembali'
+                ], 404);
+            }
+            $userId = $user->id_user;
+            
             // Get jasa and paket details for pricing
             $jasa = Jasa::find($request->input('id_jasa'));
             $paketJasa = PaketJasa::find($request->input('id_paket_jasa'));
@@ -182,18 +243,39 @@ public function getAll(Request $request)
                     'maksimal_revisi' => $jumlahRevisi,
                     'created_at' => Carbon::now(),
                     'updated_at' => Carbon::now(),
-                    'id_user' => User::select('id_user')->where('id_auth', $request->user()->id_auth)->first()->id_user,
+                    'id_user' => $userId,
                     'id_jasa' => $request->input('id_jasa'),
                     'id_paket_jasa' => $request->input('id_paket_jasa')
                 ]);
-                mkdir($this->dirPath($uuid));
+                
+                // Create directory for order files
+                try {
+                    $orderPath = $this->dirPath($uuid);
+                    if (!file_exists($orderPath)) {
+                        mkdir($orderPath, 0755, true);
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Error creating order directory: ' . $e->getMessage());
+                    // Continue without failing if directory creation fails
+                }
+                
                 $filename = null;
                 if ($request->hasFile('gambar_referensi') && $request->file('gambar_referensi')->isValid() && in_array($request->file('gambar_referensi')->extension(), ['jpeg', 'png', 'jpg'])) {
                     $file = $request->file('gambar_referensi');
                     $filename = $file->hashName();
-                    mkdir($this->dirPath($uuid . '/catatan_pesanan'));
-                    $file->move($this->dirPath($uuid . '/catatan_pesanan/'), $filename);
+                    
+                    try {
+                        $catatanPath = $this->dirPath($uuid . '/catatan_pesanan');
+                        if (!file_exists($catatanPath)) {
+                            mkdir($catatanPath, 0755, true);
+                        }
+                        $file->move($catatanPath, $filename);
+                    } catch (\Exception $e) {
+                        Log::error('Error handling reference image: ' . $e->getMessage());
+                        // Continue without failing if file handling fails
+                    }
                 }
+                
                 // Create catatan pesanan record
                 if($request->input('catatan_user') != null && $request->input('catatan_user') != ''){
                     CatatanPesanan::create([
@@ -201,7 +283,7 @@ public function getAll(Request $request)
                         'gambar_referensi' => $filename,
                         'uploaded_at' => now(),
                         'id_pesanan' => $idPesanan,
-                        'id_user' => User::select('id_user')->where('id_auth', $request->user()->id_auth)->first()->id_user
+                        'id_user' => $userId
                     ]);
                 }
                 
@@ -222,6 +304,20 @@ public function getAll(Request $request)
                     'id_metode_pembayaran' => $metodePembayaran->id_metode_pembayaran,
                     'id_pesanan' => $idPesanan
                 ]);
+                
+                // Create a chat room for this order
+                try {
+                    $chatController = new ChatController();
+                    $chat = $chatController->createChatForOrder($uuid, $userId);
+                } catch (\Exception $e) {
+                    Log::error('Error creating chat for order: ' . $e->getMessage());
+                    // Create a default chat object to avoid null reference
+                    $chat = (object) [
+                        'uuid' => null,
+                        'admin' => null
+                    ];
+                }
+                
                 DB::commit();
                 return response()->json([
                     'status' => 'success',
@@ -230,6 +326,10 @@ public function getAll(Request $request)
                         'id_pesanan' => $uuid,
                         'transaksi' => $transaksi,
                         'payment_method' => $metodePembayaran,
+                        'chat' => [
+                            'chat_uuid' => $chat->uuid,
+                            'admin_name' => $chat->admin ? $chat->admin->nama_admin : 'Admin TATA'
+                        ],
                         'expired_at' => $expiredAt->format('Y-m-d H:i:s'),
                         'payment_instructions' => [
                             'step1' => 'Transfer ke rekening: ' . $metodePembayaran->no_metode_pembayaran,
@@ -242,7 +342,11 @@ public function getAll(Request $request)
                 ], 201);
             } catch (\Exception $e) {
                 DB::rollBack();
-                throw $e;
+                Log::error('Error in transaction: ' . $e->getMessage());
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Gagal membuat pesanan dan transaksi: ' . $e->getMessage()
+                ], 500);
             }
         } catch (\Exception $e) {
             Log::error('Error creating order with transaction: ' . $e->getMessage());
@@ -272,9 +376,30 @@ public function getAll(Request $request)
                 }
                 return response()->json(['status' => 'error', 'message' => implode(', ', $errors)], 400);
             }
+            
+            // Check if user exists
+            if (!$request->user() || !$request->user()->id_auth) {
+                Log::error('User not authenticated or id_auth is null');
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Anda perlu login kembali'
+                ], 401);
+            }
+            
+            // Get user ID safely
+            $user = User::where('id_auth', $request->user()->id_auth)->first();
+            if (!$user) {
+                Log::error('User not found for auth ID: ' . $request->user()->id_auth);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak ditemukan, silakan login kembali'
+                ], 404);
+            }
+            $userId = $user->id_user;
+            
             $pesanan = Pesanan::join('catatan_pesanan', 'catatan_pesanan.id_pesanan', '=', 'pesanan.id_pesanan')
                 ->where('uuid', $request->input('id_pesanan'))
-                ->where('pesanan.id_user', User::select('id_user')->where('id_auth', $request->user()->id_auth)->first()->id_user)
+                ->where('pesanan.id_user', $userId)
                 ->first();
 
             if (!$pesanan) {

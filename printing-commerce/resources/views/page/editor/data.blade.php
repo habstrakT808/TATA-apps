@@ -212,7 +212,10 @@ $tPath = app()->environment('local') ? '' : '';
                                                 <h6 class="fw-semibold mb-0">No</h6>
                                             </th>
                                             <th class="border-bottom-0">
-                                                <h6 class="fw-semibold mb-0">Nama Editor</h6>
+                                                <h6 class="fw-semibold mb-0">Nama</h6>
+                                            </th>
+                                            <th class="border-bottom-0">
+                                                <h6 class="fw-semibold mb-0">Email</h6>
                                             </th>
                                             <th class="border-bottom-0">
                                                 <h6 class="fw-semibold mb-0">Jenis Kelamin</h6>
@@ -233,6 +236,9 @@ $tPath = app()->environment('local') ? '' : '';
                                             </td>
                                             <td class="border-bottom-0">
                                                 <h6 class="fw-semibold mb-1">{{ $editor->nama_editor }}</h6>
+                                            </td>
+                                            <td class="border-bottom-0">
+                                                <p class="mb-0 fw-normal">{{ $editor->email ?: '-' }}</p>
                                             </td>
                                             <td class="border-bottom-0">
                                                 <p class="mb-0 fw-normal">{{ $editor->jenis_kelamin ?: '-' }}</p>

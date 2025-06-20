@@ -2,6 +2,7 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
 
 use App\Http\Controllers\Services\JasaController;
 use App\Http\Controllers\Services\PesananController;
@@ -10,8 +11,9 @@ use App\Http\Controllers\Services\TransaksiController;
 use App\Http\Controllers\Services\AdminController;
 use App\Http\Controllers\Services\EditorController;
 use App\Http\Controllers\Services\PengerjaanController;
-use App\Http\Controllers\Mobile\ChatController;
-use App\Http\Controllers\Mobile\UserController;
+// Comment out missing controllers
+// use App\Http\Controllers\Mobile\ChatController;
+// use App\Http\Controllers\Mobile\UserController;
 
 use App\Http\Controllers\Page\JasaController AS ShowJasaController;
 use App\Http\Controllers\Page\PesananController AS ShowPesananController;
@@ -22,17 +24,21 @@ use App\Http\Controllers\Page\AdminController AS ShowAdminController;
 use App\Http\Controllers\Page\EditorController AS ShowEditorController;
 use App\Http\Controllers\Page\UserController AS ShowUserController;
 use App\Http\Controllers\Page\PengerjaanController AS ShowPengerjaanController;
+use App\Http\Controllers\Page\UserManagementController;
 Route::group(['middleware'=>['auth:sanctum','authorize']], function(){
     //API only jasa route
     Route::group(['prefix'=>'/jasa'], function(){
         //page jasa
         Route::get('/',[ShowJasaController::class,'showAll'])->name('jasa.index');
+        Route::get('/tambah',[ShowJasaController::class,'showTambah'])->name('jasa.tambah');
         Route::get('/edit/{any}',[ShowJasaController::class,'showEdit'])->name('jasa.edit');
         Route::get('/edit', function(){
             return redirect('/jasa');
         });
         // route for jasa
+        Route::post('/create',[JasaController::class,'createJasa'])->name('api.jasa.create');
         Route::put('/update',[JasaController::class,'updateJasa'])->name('api.jasa.update');
+        Route::delete('/delete',[JasaController::class,'deleteJasa'])->name('api.jasa.delete');
     });
 
     //API only pesanan route
@@ -47,14 +53,14 @@ Route::group(['middleware'=>['auth:sanctum','authorize']], function(){
     });
     
     //API only metode pembayaran route
-    Route::group(['prefix'=>'/metode-pembayaran'], function(){
+    Route::group(['prefix'=>'/payment-methods'], function(){
         //page metode pembayaran
         Route::get('/',[ShowMetodePembayaranController::class,'showAll']);
-        Route::get('/detail/{any}',[ShowMetodePembayaranController::class,'showDetail']);
+        Route::get('/detail/{uuid}',[ShowMetodePembayaranController::class,'showDetail']);
         Route::get('/tambah',[ShowMetodePembayaranController::class,'showTambah']);
         Route::get('/edit/{any}',[ShowMetodePembayaranController::class,'showEdit']);
         Route::get('/edit', function(){
-            // return redirect('/metode-pembayaran');
+            return redirect('/payment-methods');
         });
         // route for metode pembayaran
         Route::post('/create',[MetodePembayaranController::class,'createMPembayaran']);
@@ -80,39 +86,58 @@ Route::group(['middleware'=>['auth:sanctum','authorize']], function(){
         Route::get('/{uuid}', [ShowChatController::class, 'showDetail']);
         
         // API routes for chat
-        Route::post('/send', [ChatController::class, 'sendMessage']);
-        Route::get('/messages', [ChatController::class, 'getMessages']);
-        Route::post('/mark-read', [ChatController::class, 'markAsRead']);
+        Route::get('/chats', [ShowChatController::class, 'getChats']);
+        Route::get('/messages', [ShowChatController::class, 'getMessages']);
+        Route::post('/send', [ShowChatController::class, 'sendMessage']);
+        Route::post('/mark-read', [ShowChatController::class, 'markAsRead']);
+        Route::post('/upload', [ShowChatController::class, 'uploadFile']);
+        Route::post('/assign', [ShowChatController::class, 'assignChatToAdmin']);
     });
 
-    //API only user route
+    //API only user management route
+    Route::group(['prefix'=>'/user-management'], function(){
+        //page user management
+        Route::get('/',[UserManagementController::class,'showAll']);
+        Route::get('/detail/{uuid}',[UserManagementController::class,'showDetail']);
+        Route::get('/tambah',[UserManagementController::class,'showTambah']);
+        Route::get('/edit', function(){
+            return redirect('/user-management');
+        });
+    });
+
+    //API only user route - keep for backward compatibility
     Route::group(['prefix'=>'/user'], function(){
-        //page user
-        Route::get('/',[ShowUserController::class,'showAll']);
-        Route::get('/detail/{any}',[ShowUserController::class,'showDetail']);
-        Route::get('/tambah',[ShowUserController::class,'showTambah']);
-        Route::get('/edit', function(){
-            return redirect('/user');
+        Route::get('/', function(){
+            return redirect('/user-management');
         });
-        // route for user
-        Route::post('/create',[UserController::class,'createUser']);
-        Route::delete('/delete',[UserController::class,'deleteUser']);
+        Route::post('/create', [App\Http\Controllers\Mobile\UserController::class, 'createUser']);
+        Route::delete('/delete',[ShowUserController::class,'deleteUser']);
     });
 
-    //API only editor route
+    //API only editor route - keep for backward compatibility
     Route::group(['prefix'=>'/editor'], function(){
-        //page editor
-        Route::get('/',[ShowEditorController::class,'showAll']);
-        Route::get('/detail/{any}',[ShowEditorController::class,'showDetail']);
-        Route::get('/tambah',[ShowEditorController::class,'showTambah']);
-        Route::get('/edit/{any}',[ShowEditorController::class,'showEdit']);
-        Route::get('/edit', function(){
-            return redirect('/editor');
+        Route::get('/', function(){
+            return redirect('/user-management');
         });
-        // route for editor
-        Route::post('/create',[EditorController::class,'createEditor']);
-        Route::put('/update',[EditorController::class,'updateEditor']);
-        Route::delete('/delete',[EditorController::class,'deleteEditor']);
+        // Add route for editor creation
+        Route::post('/create',[App\Http\Controllers\Services\EditorController::class,'createEditor']);
+        Route::put('/update',[App\Http\Controllers\Services\EditorController::class,'updateEditor']);
+        Route::delete('/delete',[App\Http\Controllers\Services\EditorController::class,'deleteEditor']);
+    });
+
+    //API only admin route - keep for backward compatibility
+    Route::group(['prefix'=>'/admin'], function(){
+        Route::get('/', function(){
+            return redirect('/user-management');
+        });
+        // route for admin
+        Route::post('/create',[AdminController::class,'createAdmin']);
+        Route::delete('/delete',[AdminController::class,'deleteAdmin']);
+        Route::group(['prefix'=>'/update'],function(){
+            Route::put('/',[AdminController::class,'updateAdmin']);
+            Route::put('/profile', [AdminController::class, 'updateProfile']);
+            Route::put('/password', [AdminController::class, 'updatePassword']);
+        });
     });
 
     //API only pengerjaan route
@@ -130,23 +155,6 @@ Route::group(['middleware'=>['auth:sanctum','authorize']], function(){
         Route::post('/mark-completed', [PengerjaanController::class, 'markRevisionCompleted']);
     });
 
-    Route::group(['prefix'=>'/admin'], function(){
-        //page admin
-        Route::get('/',[ShowAdminController::class,'showAll']);
-        Route::get('/tambah',[ShowAdminController::class,'showTambah']);
-        Route::get('/edit/{any}',[ShowAdminController::class,'showEdit']);
-        Route::get('/edit', function(){
-            return redirect('/admin');
-        });
-        // route for admin
-        Route::post('/create',[AdminController::class,'createAdmin']);
-        Route::delete('/delete',[AdminController::class,'deleteAdmin']);
-        Route::group(['prefix'=>'/update'],function(){
-            Route::put('/',[AdminController::class,'updateAdmin']);
-            Route::put('/profile', [AdminController::class, 'updateProfile']);
-            Route::put('/password', [AdminController::class, 'updatePassword']);
-        });
-    });
     Route::get('/dashboard',[ShowAdminController::class,'showDashboard']);
     Route::get('/profile',[ShowAdminController::class,'showProfile']);
 });
@@ -200,4 +208,9 @@ Route::group(['middleware' => 'admin.guest'], function(){
     Route::get('/', function(){
         return redirect('/login');
     });
+});
+
+// Test route to check if routing is working
+Route::get('/test-route', function() {
+    return 'Test route is working!';
 });

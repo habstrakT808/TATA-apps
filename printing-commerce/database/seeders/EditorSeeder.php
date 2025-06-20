@@ -12,11 +12,13 @@ class EditorSeeder extends Seeder
     public function run(): void
     {
         $jsonData = json_decode(file_get_contents(self::$tempFile), true);
+        $idEditors = [];
         for($i = 1; $i <= 5; $i++){
             $nama = "Editor " . $i;
             $idEditor = Editor::insertGetId([
                 'uuid' => Str::uuid(),
                 'nama_editor' => $nama,
+                'email' => 'editor' . $i . '@tata.com',
                 'jenis_kelamin' => ['laki-laki', 'perempuan'][rand(0, 1)],
                 'no_telpon' => '0855'.mt_rand(00000000,99999999),
             ]);

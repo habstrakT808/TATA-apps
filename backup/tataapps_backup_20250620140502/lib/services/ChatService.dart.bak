@@ -1,0 +1,794 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:TATA/models/ChatModel.dart';
+import 'package:TATA/sendApi/Server.dart';
+import 'package:TATA/helper/user_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
+
+class ChatService {
+  // Singleton pattern
+  static final ChatService _instance = ChatService._internal();
+  factory ChatService() => _instance;
+  ChatService._internal();
+
+  // Firebase instances
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  
+  // Flag untuk menentukan penggunaan Firebase vs API
+  bool _useFirebaseFallback = true;
+
+  // Get current user
+  User? get currentUser => _auth.currentUser;
+
+  // Mengatur apakah menggunakan Firebase atau fallback API
+  void setUseFallback(bool useFallback) {
+    _useFirebaseFallback = !useFallback;
+  }
+  
+  // Initialize Firestore (untuk backward compatibility)
+  Future<void> initFirestore() async {
+    try {
+      print('Inisialisasi Firestore...');
+      // Tes koneksi Firestore
+      final hasPermission = await testFirestorePermission();
+      if (hasPermission) {
+        print('Koneksi Firestore berhasil, pengaturan izin OK');
+        _useFirebaseFallback = true;
+      } else {
+        print('Koneksi Firestore gagal, menggunakan API Laravel sebagai fallback');
+        _useFirebaseFallback = false;
+      }
+    } catch (e) {
+      print('Error inisialisasi Firestore: $e');
+      _useFirebaseFallback = false;
+    }
+    return;
+  }
+  
+  // Test jika Firestore dapat diakses
+  Future<bool> testFirestorePermission() async {
+    try {
+      // Coba buat dokumen sementara untuk menguji izin
+      final testDoc = await _firestore.collection('permission_test').add({
+        'timestamp': Timestamp.now(),
+        'test': 'Ini adalah test izin'
+      });
+      
+      // Jika berhasil, hapus dokumen test dan return true
+      await testDoc.delete();
+      return true;
+    } catch (e) {
+      print('Firestore permission test failed: $e');
+      
+      // Coba upload rules Firestore jika mendapat error permission-denied
+      if (e.toString().contains('permission-denied')) {
+        print('Mencoba mengatasi masalah permission Firestore...');
+        print('Pastikan Anda telah mengupload file firestore.rules ke Firebase Console');
+        print('Atau ubah rules di console.firebase.google.com');
+        print('''
+Untuk mengatasi masalah ini, tambahkan aturan berikut di Firebase Console:
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true; // Hanya untuk pengembangan, jangan gunakan di production!
+    }
+  }
+}
+        ''');
+      }
+      
+      return false;
+    }
+  }
+  
+  // Mendapatkan atau membuat chat berdasarkan order ID
+  Future<String> getOrCreateChatForOrder(String userId, String orderId) async {
+    if (_useFirebaseFallback) {
+      try {
+        // Coba gunakan Firestore terlebih dahulu
+        return await _getOrCreateChatFirestore(userId, orderId);
+      } catch (e) {
+        print('Firebase failed, using Laravel API fallback: $e');
+        // Jika gagal, gunakan Laravel API sebagai fallback
+        return await _getOrCreateChatLaravelFallback(userId, orderId);
+      }
+    } else {
+      // Langsung gunakan Laravel API jika fallback diaktifkan
+      return await _getOrCreateChatLaravelFallback(userId, orderId);
+    }
+  }
+  
+  // Implementasi Firebase untuk mendapatkan atau membuat chat
+  Future<String> _getOrCreateChatFirestore(String userId, String orderId) async {
+    try {
+      // Tes izin terlebih dahulu
+      final hasPermission = await testFirestorePermission();
+      if (!hasPermission) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          message: 'Permission denied. Silakan atur Firestore Rules di Firebase Console.',
+          code: 'permission-denied'
+        );
+      }
+      
+      // Cek apakah sudah ada chat untuk order ini
+      final existingChatQuery = await _firestore
+          .collection('chats')
+          .where('user_id', isEqualTo: userId)
+          .where('order_reference', isEqualTo: orderId)
+          .limit(1)
+          .get();
+      
+      // Jika sudah ada, kembalikan chat ID tersebut
+      if (existingChatQuery.docs.isNotEmpty) {
+        return existingChatQuery.docs.first.id;
+      }
+      
+      // Jika belum ada, cari admin yang tersedia dan buat chat baru
+      final adminId = await findAvailableAdmin();
+      
+      // Jika adminId adalah admin_default dan tidak ada di database, buat admin default
+      if (adminId == 'admin_default') {
+        await _createDefaultAdminIfNotExists();
+      }
+      
+      final chatId = await createNewChat(userId, adminId, orderRef: orderId);
+      
+      // Kirim pesan otomatis pembuka
+      await sendMessage(
+        chatId, 
+        "Hai! Admin TATA siap membantu Anda terkait pesanan #$orderId", 
+        'admin'
+      );
+      
+      return chatId;
+    } catch (e) {
+      print('Error getting or creating chat for order: $e');
+      
+      // Coba upload rules Firestore jika mendapat error permission-denied
+      if (e.toString().contains('permission-denied')) {
+        print('Mencoba mengatasi masalah permission Firestore...');
+        print('Pastikan Anda telah mengupload file firestore.rules ke Firebase Console');
+        print('Atau ubah rules di console.firebase.google.com');
+        print('''
+Untuk mengatasi masalah ini, tambahkan aturan berikut di Firebase Console:
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true; // Hanya untuk pengembangan, jangan gunakan di production!
+    }
+  }
+}
+        ''');
+      }
+      
+      throw e;
+    }
+  }
+  
+  // Implementasi fallback menggunakan Laravel API
+  Future<String> _getOrCreateChatLaravelFallback(String userId, String orderId) async {
+    try {
+      final userData = await UserPreferences.getUser();
+      final token = userData?['access_token'];
+      
+      if (token == null) {
+        throw Exception('Token tidak ditemukan. Silakan login kembali.');
+      }
+      
+      // Cek apakah chat sudah ada
+      final response = await http.post(
+        Server.urlLaravel('chat/get-or-create'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode({
+          'user_id': userId,
+          'order_id': orderId,
+        }),
+      );
+      
+      final responseData = json.decode(response.body);
+      
+      if (response.statusCode == 200 && responseData['status'] == 'success') {
+        // Gunakan ID yang diberikan dari API Laravel
+        final String chatId = responseData['data']['chat_id'].toString();
+        return chatId;
+      } else {
+        throw Exception(responseData['message'] ?? 'Gagal membuat chat');
+      }
+    } catch (e) {
+      print('Error using Laravel API fallback: $e');
+      throw e;
+    }
+  }
+  
+  // Mendapatkan semua chat untuk user tertentu
+  Stream<List<ChatModel>> getChatsForUser(String userId) {
+    return _firestore
+        .collection('chats')
+        .where('user_id', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => ChatModel.fromFirestore(doc))
+            .toList());
+  }
+  
+  // Mendapatkan semua pesan dalam chat
+  Stream<List<MessageModel>> getMessagesForChat(String chatId) {
+    try {
+      // Gunakan catchError untuk menangani error pada stream
+      return _firestore
+          .collection('messages')
+          .where('chat_id', isEqualTo: chatId)
+          .orderBy('created_at')
+          .snapshots()
+          .map((snapshot) {
+            print('Loaded ${snapshot.docs.length} messages for chat $chatId');
+            return snapshot.docs
+                .map((doc) => MessageModel.fromFirestore(doc))
+                .toList();
+          })
+          .handleError((error) {
+            print('Error in messages stream: $error');
+            // Return empty list on error to prevent UI crashes
+            return <MessageModel>[];
+          });
+    } catch (e) {
+      print('Error setting up messages stream: $e');
+      // Return empty stream on setup error
+      return Stream.value(<MessageModel>[]);
+    }
+  }
+  
+  // Buat chat baru
+  Future<String> createNewChat(String userId, String adminId, {String? orderRef}) async {
+    final docRef = await _firestore.collection('chats').add({
+      'user_id': userId,
+      'admin_id': adminId,
+      'order_reference': orderRef,
+      'created_at': Timestamp.now(),
+      'updated_at': Timestamp.now(),
+      'last_message': '',
+      'unread_count': 0,
+    });
+    
+    return docRef.id;
+  }
+  
+  // Cari admin yang tersedia untuk chat (admin dengan chat paling sedikit)
+  Future<String> findAvailableAdmin() async {
+    try {
+      // Default admin jika tidak ada admin yang ditemukan
+      String availableAdminId = 'admin_default';
+      
+      // Cari di collection 'admins' yang memiliki flag is_chat_admin = true
+      final adminSnapshot = await _firestore
+          .collection('admins')
+          .where('is_chat_admin', isEqualTo: true)
+          .get();
+      
+      if (adminSnapshot.docs.isNotEmpty) {
+        // Jika ada admin, maka ambil admin pertama
+        availableAdminId = adminSnapshot.docs.first.id;
+        final adminData = adminSnapshot.docs.first.data();
+        print('Found admin: ${adminData['name']}');
+        
+        // Jika ada lebih dari 1 admin, cari yang paling tidak sibuk
+        if (adminSnapshot.docs.length > 1) {
+          // Mendapatkan jumlah chat aktif untuk setiap admin
+          final Map<String, int> adminChatCounts = {};
+          final Map<String, String> adminNames = {};
+          
+          for (var adminDoc in adminSnapshot.docs) {
+            final String adminId = adminDoc.id;
+            final adminData = adminDoc.data();
+            
+            final chatCount = await _firestore
+                .collection('chats')
+                .where('admin_id', isEqualTo: adminId)
+                .count()
+                .get();
+            
+            adminChatCounts[adminId] = chatCount.count ?? 0; // Tambahkan nilai default 0 jika null
+            adminNames[adminId] = adminData['name'] ?? 'Admin Chat';
+          }
+          
+          // Cari admin dengan jumlah chat paling sedikit
+          var minEntry = adminChatCounts.entries.first;
+          for (var entry in adminChatCounts.entries) {
+            if (entry.value < minEntry.value) {
+              minEntry = entry;
+            }
+          }
+          
+          availableAdminId = minEntry.key;
+          print('Selecting admin with fewest chats: ${adminNames[availableAdminId]} (${minEntry.value} chats)');
+        }
+      } else {
+        print('No admins found, creating default admin');
+        await _createDefaultAdminIfNotExists();
+      }
+      
+      return availableAdminId;
+    } catch (e) {
+      print('Error finding available admin: $e');
+      return 'admin_default';
+    }
+  }
+  
+  // Membuat admin default jika belum ada
+  Future<void> _createDefaultAdminIfNotExists() async {
+    try {
+      final adminDoc = await _firestore.collection('admins').doc('admin_default').get();
+      
+      if (!adminDoc.exists) {
+        // Hitung jumlah admin yang ada untuk memberi nomor pada admin baru
+        final adminCount = await _firestore
+            .collection('admins')
+            .count()
+            .get();
+        
+        final adminNumber = adminCount.count != null ? adminCount.count! + 1 : 1;
+        
+        await _firestore.collection('admins').doc('admin_default').set({
+          'name': 'Admin Chat $adminNumber',
+          'email': 'admin@tata.id',
+          'is_chat_admin': true,
+          'admin_number': adminNumber,
+          'created_at': Timestamp.now(),
+        });
+        print('Created default admin: Admin Chat $adminNumber');
+      }
+    } catch (e) {
+      print('Error creating default admin: $e');
+    }
+  }
+  
+  // Send message v1 - Untuk fitur chat lama
+  Future<bool> sendMessage(String chatId, String content, String senderType) async {
+    try {
+      // Generate a unique message ID
+      String messageId = DateTime.now().millisecondsSinceEpoch.toString() + '-' + chatId;
+      
+      // Add message to the messages collection
+      await _firestore.collection('messages').doc(messageId).set({
+        'id': messageId,
+        'chat_id': chatId,
+        'content': content,
+        'sender_type': senderType,
+        'is_read': false,
+        'created_at': FieldValue.serverTimestamp(),
+      });
+      
+      // Update chat with last message info
+      await _firestore.collection('chats').doc(chatId).update({
+        'updated_at': FieldValue.serverTimestamp(),
+        'last_message': content,
+        'unread_count': FieldValue.increment(senderType == 'user' ? 0 : 1),
+      });
+      
+      // Debug untuk memastikan pesan terkirim
+      print('Message sent successfully with ID: $messageId');
+      return true;
+    } catch (e) {
+      print('Error sending message: $e');
+      
+      // Coba kirim melalui API Laravel sebagai fallback
+      if (_useFirebaseFallback) {
+        try {
+          await _sendMessageLaravelFallback(chatId, content, senderType);
+          return true;
+        } catch (apiError) {
+          print('Error sending message via Laravel API: $apiError');
+          return false;
+        }
+      }
+      
+      return false;
+    }
+  }
+  
+  // Kirim pesan melalui Laravel API sebagai fallback
+  Future<void> _sendMessageLaravelFallback(String chatId, String content, String senderType) async {
+    final userData = await UserPreferences.getUser();
+    final token = userData?['access_token'];
+    
+    if (token == null) {
+      throw Exception('Token tidak ditemukan. Silakan login kembali.');
+    }
+    
+    // Cari pesanan_uuid dari chat_id
+    final chatDoc = await _firestore.collection('chats').doc(chatId).get();
+    if (!chatDoc.exists) {
+      throw Exception('Chat tidak ditemukan');
+    }
+    
+    final chatData = chatDoc.data() as Map<String, dynamic>;
+    final orderReference = chatData['order_reference'];
+    
+    if (orderReference == null || orderReference.isEmpty) {
+      throw Exception('Referensi pesanan tidak ditemukan');
+    }
+    
+    // Kirim pesan via API
+    final response = await http.post(
+      Server.urlLaravel('chat/send'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: json.encode({
+        'pesanan_uuid': orderReference,
+        'message': content,
+      }),
+    );
+    
+    if (response.statusCode != 200) {
+      throw Exception('Gagal mengirim pesan melalui API: ${response.statusCode}');
+    }
+  }
+  
+  // Mark messages as read
+  Future<bool> markMessagesAsRead(String chatId, String readerType) async {
+    try {
+      // Only mark messages as read if they were sent by the opposite type
+      String oppositeType = readerType == 'user' ? 'admin' : 'user';
+      
+      // Update messages sent by opposite type
+      final messagesQuery = await _firestore
+          .collection('messages')
+          .where('chat_id', isEqualTo: chatId)
+          .where('sender_type', isEqualTo: oppositeType)
+          .where('is_read', isEqualTo: false)
+          .get();
+      
+      // Batch update
+      WriteBatch batch = _firestore.batch();
+      for (var doc in messagesQuery.docs) {
+        batch.update(doc.reference, {'is_read': true});
+      }
+      
+      // Reset unread count in chat document
+      batch.update(
+        _firestore.collection('chats').doc(chatId),
+        {'unread_count': 0}
+      );
+      
+      await batch.commit();
+      return true;
+    } catch (e) {
+      print('Error marking messages as read: $e');
+      return false;
+    }
+  }
+  
+  // Debug info (untuk backward compatibility)
+  void printDebugInfo(String chatId) {
+    print('Debug info for chat $chatId:');
+    print('Firestore instance: $_firestore');
+    print('Current user: ${currentUser?.uid ?? 'Not signed in'}');
+    print('Using Firebase fallback: $_useFirebaseFallback');
+  }
+  
+  // Mendapatkan nama admin dari ID
+  Future<String> getAdminName(String adminId) async {
+    try {
+      final adminDoc = await _firestore.collection('admins').doc(adminId).get();
+      if (adminDoc.exists) {
+        final adminData = adminDoc.data() as Map<String, dynamic>;
+        return adminData['name'] ?? 'Admin TATA';
+      }
+      return 'Admin TATA';
+    } catch (e) {
+      print('Error getting admin name: $e');
+      return 'Admin TATA';
+    }
+  }
+  
+  // Mendapatkan data pesanan berdasarkan order_reference
+  Future<Map<String, dynamic>> getPesananData(String orderReference) async {
+    try {
+      if (orderReference == null || orderReference.isEmpty) {
+        print("Warning: Empty order reference provided to getPesananData");
+        return _getDefaultPesananData();
+      }
+      
+      print("Getting pesanan data for: $orderReference");
+      
+      // Default response jika tidak ada data
+      final defaultData = _getDefaultPesananData();
+
+      // Coba dapatkan data dari Firestore terlebih dahulu
+      try {
+        // Cek di koleksi chats
+        final chatQuery = await _firestore
+            .collection('chats')
+            .where('order_reference', isEqualTo: orderReference)
+            .limit(1)
+            .get();
+        
+        if (chatQuery.docs.isNotEmpty) {
+          final chatData = chatQuery.docs.first.data();
+          final adminId = chatData['admin_id'];
+          
+          if (adminId != null) {
+            // Dapatkan data admin
+            final adminDoc = await _firestore.collection('admins').doc(adminId).get();
+            if (adminDoc.exists) {
+              final adminData = adminDoc.data() as Map<String, dynamic>;
+              defaultData['admin_name'] = adminData['name'] ?? 'Admin Chat';
+              
+              // Cek jika admin memiliki angka di namanya
+              if (!adminData['name'].toString().contains('Admin Chat')) {
+                defaultData['admin_name'] = 'Admin Chat ' + (adminData['admin_number']?.toString() ?? '');
+              }
+            }
+          }
+        }
+      } catch (e) {
+        print('Error getting admin data from Firestore: $e');
+      }
+      
+      // Bersihkan orderReference dari karakter #
+      String cleanOrderReference = orderReference.replaceAll("#", "");
+      
+      try {
+        // Coba ambil data dari API Laravel sebagai fallback
+        final userData = await UserPreferences.getUser();
+        final token = userData?['access_token'];
+        
+        if (token != null) {
+          print('Fetching order data from API for orderID: $cleanOrderReference');
+          
+          final response = await http.get(
+            Server.urlLaravel('api/pesanan/$cleanOrderReference'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+          );
+          
+          print('API Response Code: ${response.statusCode}');
+          
+          if (response.statusCode == 200) {
+            final data = json.decode(response.body);
+            print('Data pesanan dari API: ${data}');
+            
+            if (data['status'] == 'success' && data['data'] != null) {
+              final pesananData = data['data'];
+              
+              // Log details untuk debugging
+              print('Judul: Desain ${capitalize(pesananData['kategori'] ?? 'Logo')}');
+              print('Kategori: ${pesananData['kategori'] ?? 'Logo'}');
+              print('Kelas: ${pesananData['kelas_jasa'] ?? 'Standard'}');
+              print('Harga: ${pesananData['harga_paket_jasa'] ?? 100000}');
+              print('Gambar: ${pesananData['gambar_referensi'] ?? ''}');
+              
+              return {
+                'judul': 'Desain ${capitalize(pesananData['kategori'] ?? 'Logo')}',
+                'kategori': pesananData['kategori'] ?? 'Logo',
+                'kelas_jasa': pesananData['kelas_jasa'] ?? 'Standard', 
+                'harga_paket_jasa': int.tryParse(pesananData['harga_paket_jasa']?.toString() ?? '100000') ?? 100000,
+                'deskripsi': pesananData['deskripsi'] ?? '',
+                'gambar_referensi': pesananData['gambar_referensi'] ?? '',
+                'admin_name': defaultData['admin_name']
+              };
+            }
+          } else {
+            print('Failed to get order data: ${response.statusCode} - ${response.body}');
+          }
+        }
+      } catch (e) {
+        print('Error getting pesanan data from API: $e');
+      }
+      
+      // Jika kita sampai di sini, gunakan data default
+      return defaultData;
+    } catch (e) {
+      print('Error in getPesananData: $e');
+      return _getDefaultPesananData();
+    }
+  }
+  
+  // Helper method untuk default data pesanan
+  Map<String, dynamic> _getDefaultPesananData() {
+    return {
+      'judul': 'Desain Logo',
+      'kategori': 'Logo',
+      'kelas_jasa': 'Standard',
+      'harga_paket_jasa': 100000,
+      'deskripsi': '',
+      'gambar_referensi': '',
+      'admin_name': 'Admin Chat'
+    };
+  }
+  
+  // Fungsi untuk kapitalisasi string
+  String capitalize(String s) {
+    if (s == null || s.isEmpty) {
+      return '';
+    }
+    return s[0].toUpperCase() + s.substring(1).toLowerCase();
+  }
+
+  // Load pesan chat dari server dan kemudian dari Firestore
+  Future<List<ChatMessage>> loadMessages(String orderReference) async {
+    List<ChatMessage> messages = [];
+    try {
+      print('Loading messages for order: $orderReference');
+      
+      // Clean up order reference if needed (remove # if present)
+      String cleanOrderReference = orderReference.replaceAll("#", "");
+      
+      // Try to get from API first
+      final userData = await UserPreferences.getUser();
+      final token = userData?['access_token'];
+      if (token != null) {
+        try {
+          print('Fetching messages from API...');
+          final response = await http.get(
+            Server.urlLaravel('api/mobile/chat/messages/$cleanOrderReference'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+          );
+          
+          print('API Response Status: ${response.statusCode}');
+          
+          if (response.statusCode == 200) {
+            final data = json.decode(response.body);
+            if (data['status'] == 'success' && data['messages'] != null) {
+              List<dynamic> apiMessages = data['messages'];
+              for (var msg in apiMessages) {
+                messages.add(ChatMessage.fromJson(msg));
+              }
+              print('Loaded ${messages.length} messages from API');
+            }
+          } else {
+            print('Failed to load messages from API: ${response.statusCode} - ${response.body}');
+          }
+        } catch (e) {
+          print('Error loading messages from API: $e');
+        }
+      }
+
+      // Then get from Firestore regardless of API result
+      try {
+        print('Fetching messages from Firestore...');
+        QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore
+            .collection('chats')
+            .where('order_reference', isEqualTo: orderReference)
+            .orderBy('timestamp', descending: true)
+            .limit(100)
+            .get();
+        
+        if (snapshot.docs.isNotEmpty) {
+          // Merge with any API messages we received
+          // Avoid duplicates by checking IDs
+          Set<String> existingIds = messages.map((m) => m.id).toSet();
+          
+          for (var doc in snapshot.docs) {
+            Map<String, dynamic> data = doc.data();
+            String messageId = doc.id;
+            
+            if (!existingIds.contains(messageId)) {
+              // Convert Firestore data to ChatMessage
+              messages.add(
+                ChatMessage(
+                  id: messageId,
+                  text: data['message'] ?? data['content'] ?? '',
+                  sender: data['sender_type'] ?? 'user',
+                  timestamp: data['created_at'] != null 
+                      ? (data['created_at'] as Timestamp).toDate().toIso8601String()
+                      : DateTime.now().toIso8601String(),
+                  isRead: data['is_read'] ?? false,
+                )
+              );
+              
+              existingIds.add(messageId);
+            }
+          }
+          
+          // Sort by timestamp (newest first)
+          messages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+          print('Total ${messages.length} messages after Firestore merge');
+        }
+      } catch (e) {
+        print('Error loading messages from Firestore: $e');
+      }
+    } catch (e) {
+      print('Error in loadMessages: $e');
+    }
+    
+    return messages;
+  }
+
+  // Send message v2 - Untuk fitur chat baru dengan order reference
+  Future<Map<String, dynamic>> sendChatMessage(String orderReference, String message, String userType) async {
+    try {
+      print('Sending message for order: $orderReference');
+      
+      // Clean up order reference if needed (remove # if present)
+      String cleanOrderReference = orderReference.replaceAll("#", "");
+      
+      final userData = await UserPreferences.getUser();
+      final token = userData?['access_token'];
+      String? userId = userData?['user_id']?.toString();
+      
+      if (token != null) {
+        try {
+          // Send to API
+          print('Sending message to API...');
+          final response = await http.post(
+            Server.urlLaravel('api/mobile/chat/send'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: json.encode({
+              'order_id': cleanOrderReference,
+              'message': message,
+              'sender_type': userType == 'admin' ? 'admin' : 'user'
+            }),
+          );
+          
+          print('Send message API response: ${response.statusCode}');
+          print('Response body: ${response.body}');
+          
+          if (response.statusCode == 200 || response.statusCode == 201) {
+            final responseData = json.decode(response.body);
+            print('Message sent to API successfully');
+            
+            // No need to add to Firestore if server handled it
+            if (responseData['status'] == 'success') {
+              return {'status': 'success', 'message': 'Message sent'};
+            }
+          } else {
+            print('Failed to send message to API: ${response.statusCode} - ${response.body}');
+            // Continue to Firestore as fallback
+          }
+        } catch (e) {
+          print('Error sending message to API: $e');
+          // Continue to Firestore as fallback
+        }
+      }
+      
+      // Firestore fallback or secondary storage
+      try {
+        print('Sending message to Firestore...');
+        // Generate a unique message ID
+        String messageId = DateTime.now().millisecondsSinceEpoch.toString() + 
+                          '-' + (userId ?? 'unknown');
+        
+        // Add message to Firestore
+        await _firestore.collection('chats').doc(messageId).set({
+          'id': messageId,
+          'message': message,
+          'order_reference': orderReference,
+          'sender_type': userType,
+          'timestamp': FieldValue.serverTimestamp(),
+          'user_id': userId ?? 'unknown'
+        });
+        
+        print('Message sent to Firestore successfully');
+        return {'status': 'success', 'message': 'Message sent via Firestore'};
+      } catch (e) {
+        print('Error sending message to Firestore: $e');
+        return {'status': 'error', 'message': 'Failed to send message: $e'};
+      }
+    } catch (e) {
+      print('Error in sendMessage: $e');
+      return {'status': 'error', 'message': 'Failed to send message: $e'};
+    }
+  }
+}

@@ -127,6 +127,14 @@ $tPath = app()->environment('local') ? '' : '';
                             </div>
 
                             <div class="form-group">
+                                <label for="inpEmail">Email</label>
+                                <input type="email" class="form-control" id="inpEmail" required maxlength="45">
+                                <div class="invalid-feedback">
+                                    Email harus diisi dengan format yang benar
+                                </div>
+                            </div>
+
+                            <div class="form-group">
                                 <label for="inpJenisKelamin">Jenis Kelamin</label>
                                 <select class="form-control" id="inpJenisKelamin" required>
                                     <option value="" selected disabled>Pilih Jenis Kelamin</option>

@@ -9,6 +9,7 @@ class JasaImage extends Model
 {
     use HasFactory;
     
+    protected $connection = 'mysql';
     protected $table = 'jasa_images';
     protected $primaryKey = 'id_jasa_image';
     public $incrementing = true;

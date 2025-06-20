@@ -11,7 +11,7 @@ class Editor extends Model
     protected $keyType = 'integer';
     public $timestamps = false;
     protected $fillable = [
-        'uuid', 'nama_editor', 'jenis_kelamin', 'no_telpon'
+        'uuid', 'nama_editor', 'email', 'jenis_kelamin', 'no_telpon'
     ];
     public function revisiFiles()
     {

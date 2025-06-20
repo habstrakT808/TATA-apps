@@ -5,6 +5,7 @@ use Illuminate\Database\Eloquent\Model;
 class PaketJasa extends Model
 {
     use HasFactory;
+    protected $connection = 'mysql';
     protected $table = "paket_jasa";
     protected $primaryKey = "id_paket_jasa";
     public $incrementing = true;

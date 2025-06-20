@@ -22,9 +22,19 @@ class PesananController extends Controller
             return redirect('/pesanan?status='.$status);
         }
         $orderBy = 'asc';
-        $pesananList = Pesanan::select('pesanan.uuid', 'nama_user', 'status_pesanan', 'estimasi_waktu')
+        $pesananList = Pesanan::select(
+            'pesanan.uuid', 
+            'nama_user', 
+            'status_pesanan', 
+            'estimasi_waktu',
+            'jasa.kategori',
+            'paket_jasa.kelas_jasa',
+            'catatan_pesanan.catatan_pesanan as deskripsi'
+        )
             ->join('jasa', 'jasa.id_jasa', '=', 'pesanan.id_jasa')
             ->join('users', 'users.id_user', '=', 'pesanan.id_user')
+            ->join('paket_jasa', 'paket_jasa.id_paket_jasa', '=', 'pesanan.id_paket_jasa')
+            ->leftJoin('catatan_pesanan', 'catatan_pesanan.id_pesanan', '=', 'pesanan.id_pesanan')
             ->orderBy('pesanan.created_at', $orderBy)
             ->where('status_pesanan', $status)
             ->get();

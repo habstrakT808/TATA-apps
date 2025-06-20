@@ -34,21 +34,47 @@ $tPath = app()->environment('local') ? '' : '';
     /* Status filter styles */
     .status-filters .btn {
         font-size: 14px;
-        padding: 6px 15px;
+        padding: 8px 20px;
         transition: all 0.3s ease;
+        border-radius: 4px;
+        margin-right: 5px;
     }
     .status-filters .btn-outline-primary {
         background-color: white;
+        color: #3E97FF;
+        border-color: #3E97FF;
     }
     .status-filters .btn-primary {
+        background-color: #3E97FF;
+        border-color: #3E97FF;
         font-weight: 600;
+    }
+    
+    /* Table styles */
+    .table {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    .table th {
+        background-color: #F9FAFB;
+        color: #252F40;
+        font-weight: 600;
+        padding: 12px 16px;
+    }
+    .table td {
+        padding: 12px 16px;
+        vertical-align: middle;
+        color: #252F40;
+    }
+    .table tr:hover {
+        background-color: #F6F9FF;
     }
     
     th {
         white-space: nowrap;
     }
-    th:nth-child(2) {
-        width: 100%;
+    th:nth-child(5) {
+        width: 30%;
     }
     td:last-child {
         position: relative;
@@ -59,22 +85,34 @@ $tPath = app()->environment('local') ? '' : '';
     .btn-delete{
         padding: 0px;
         display: flex;
-        width: 100px;
+        width: 40px;
         height: 40px;
         align-items: center;
-        justify-content: space-evenly;
+        justify-content: center;
         border: none;
         font-size: 17px;
     }
     .btn-edit img,
     .btn-delete img{
-        width: 24px;
-        height: 24px;
+        width: 20px;
+        height: 20px;
     }
     .btn-delete,
     .btn-delete:hover{
         background-color: #FA64B5;
     }
+    
+    /* Menunggu tab header */
+    .tab-header {
+        background-color: #3E97FF;
+        color: white;
+        padding: 12px 20px;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        font-weight: 600;
+        font-size: 18px;
+    }
+    
     @media screen and (min-width: 700px) and (max-width: 1100px) {
         #btnTambah{
             width: 135px;
@@ -91,14 +129,13 @@ $tPath = app()->environment('local') ? '' : '';
         }
         .btn-edit,
         .btn-delete{
-            width: 90px;
-            height: 40px;
-            font-size: 16px;
+            width: 35px;
+            height: 35px;
         }
         .btn-edit img,
         .btn-delete img{
-            width: 22px;
-            height: 22px;
+            width: 18px;
+            height: 18px;
         }
     }
     @media screen and (min-width: 500px) and (max-width: 700px) {
@@ -132,14 +169,13 @@ $tPath = app()->environment('local') ? '' : '';
         }
         .btn-edit,
         .btn-delete{
-            width: 90px;
-            height: 40px;
-            font-size: 15px;
+            width: 30px;
+            height: 30px;
         }
         .btn-edit img,
         .btn-delete img{
-            width: 21px;
-            height: 21px;
+            width: 16px;
+            height: 16px;
         }
     }
     @media screen and (max-width: 500px) {
@@ -174,14 +210,13 @@ $tPath = app()->environment('local') ? '' : '';
         }
         .btn-edit,
         .btn-delete{
-            width: 80px;
-            height: 37px;
-            font-size: 14px;
+            width: 28px;
+            height: 28px;
         }
         .btn-edit img,
         .btn-delete img{
-            width: 19px;
-            height: 19px;
+            width: 14px;
+            height: 14px;
         }
     }
     </style>
@@ -228,18 +263,28 @@ $tPath = app()->environment('local') ? '' : '';
                 <!-- Status filter buttons -->
                 <div class="status-filters mb-3">
                     <div class="d-flex flex-wrap gap-2">
-                        <a href="{{ url('/pesanan?status=menunggu') }}" class="btn {{ $currentStatus == 'pending' ? 'btn-secondary' : 'btn-outline-secondary' }}">Menunggu</a>
-                        <a href="{{ url('/pesanan?status=proses') }}" class="btn {{ $currentStatus == 'diproses' ? 'btn-secondary' : 'btn-outline-secondary' }}">Proses</a>
-                        <a href="{{ url('/pesanan?status=menunggu_editor') }}" class="btn {{ $currentStatus == 'menunggu_editor' ? 'btn-secondary' : 'btn-outline-secondary' }}">Menunggu Editor</a>
-                        <a href="{{ url('/pesanan?status=dikerjakan') }}" class="btn {{ $currentStatus == 'dikerjakan' ? 'btn-secondary' : 'btn-outline-secondary' }}">Dikerjakan</a>
-                        <a href="{{ url('/pesanan?status=revisi') }}" class="btn {{ $currentStatus == 'revisi' ? 'btn-secondary' : 'btn-outline-secondary' }}">Revisi</a>
-                        <a href="{{ url('/pesanan?status=selesai') }}" class="btn {{ $currentStatus == 'selesai' ? 'btn-secondary' : 'btn-outline-secondary' }}">Selesai</a>
-                        <a href="{{ url('/pesanan?status=dibatalkan') }}" class="btn {{ $currentStatus == 'dibatalkan' ? 'btn-secondary' : 'btn-outline-secondary' }}">Dibatalkan</a>
+                        <a href="{{ url('/pesanan?status=menunggu') }}" class="btn {{ $currentStatus == 'pending' ? 'btn-primary' : 'btn-outline-primary' }}">Menunggu</a>
+                        <a href="{{ url('/pesanan?status=proses') }}" class="btn {{ $currentStatus == 'diproses' ? 'btn-primary' : 'btn-outline-primary' }}">Diproses</a>
+                        <a href="{{ url('/pesanan?status=dikerjakan') }}" class="btn {{ $currentStatus == 'dikerjakan' ? 'btn-primary' : 'btn-outline-primary' }}">Dikerjakan</a>
+                        <a href="{{ url('/pesanan?status=selesai') }}" class="btn {{ $currentStatus == 'selesai' ? 'btn-primary' : 'btn-outline-primary' }}">Selesai</a>
                     </div>
                 </div>
                 
                 <div class="d-flex align-items-stretch">
                     <div class="card w-100">
+                        <div class="tab-header">
+                            @if($currentStatus == 'pending')
+                                Menunggu
+                            @elseif($currentStatus == 'diproses')
+                                Diproses
+                            @elseif($currentStatus == 'dikerjakan')
+                                Dikerjakan
+                            @elseif($currentStatus == 'selesai')
+                                Selesai
+                            @else
+                                {{ ucfirst($currentStatus) }}
+                            @endif
+                        </div>
                         <div class="card-body p-4" style="box-shadow: rgba(145,158,171,0.2) 0px 0px 2px 0px, rgba(145,158,171,0.12) 0px 12px 24px -4px;">
                             <div class="table-responsive">
                                 <table class="table mb-0 align-middle">
@@ -252,9 +297,18 @@ $tPath = app()->environment('local') ? '' : '';
                                                 <h6 class="fw-semibold mb-0">Pelanggan</h6>
                                             </th>
                                             <th class="border-bottom-0">
+                                                <h6 class="fw-semibold mb-0">Kelas</h6>
+                                            </th>
+                                            <th class="border-bottom-0">
+                                                <h6 class="fw-semibold mb-0">Kategori</h6>
+                                            </th>
+                                            <th class="border-bottom-0">
+                                                <h6 class="fw-semibold mb-0">Deskripsi Pesanan</h6>
+                                            </th>
+                                            <th class="border-bottom-0">
                                                 <h6 class="fw-semibold mb-0">Deadline</h6>
                                             </th>
-                                            @if(in_array($currentStatus, ['menunggu_editor', 'dikerjakan', 'revisi']))
+                                            @if(in_array($currentStatus, ['dikerjakan', 'selesai']))
                                             <th class="border-bottom-0">
                                                 <h6 class="fw-semibold mb-0">Nama Editor</h6>
                                             </th>
@@ -272,24 +326,34 @@ $tPath = app()->environment('local') ? '' : '';
                                                 <h6 class="fw-semibold mb-0">{{ $no++ }}</h6>
                                             </td>
                                             <td class="border-bottom-0">
-                                                <span class="fw-normal">{{ $data['nama_user'] }}
-                                                </span>
+                                                <span class="fw-normal">{{ $data['nama_user'] }}</span>
+                                            </td>
+                                            <td class="border-bottom-0">
+                                                <span class="fw-normal">{{ ucfirst($data['kelas_jasa'] ?? 'Standar') }}</span>
+                                            </td>
+                                            <td class="border-bottom-0">
+                                                <span class="fw-normal">{{ ucfirst($data['kategori'] ?? 'Logo') }}</span>
+                                            </td>
+                                            <td class="border-bottom-0">
+                                                <span class="fw-normal">{{ \Illuminate\Support\Str::limit($data['deskripsi'] ?? 'Logo brand makanan, simpel dan modern. Warna hangat, elemen makanan atau alat makan. Harus menarik dan mudah dikenali.', 100, '...') }}</span>
                                             </td>
                                             <td class="border-bottom-0">
                                                 <p class="mb-0 fw-normal">{{ $data['estimasi_waktu']}}</p>
                                             </td>
-                                            @if(in_array($currentStatus, ['menunggu_editor', 'dikerjakan', 'revisi']))
+                                            @if(in_array($currentStatus, ['dikerjakan', 'selesai']))
                                             <td class="border-bottom-0">
-                                                <p class="mb-0 fw-normal">{{ $data['nama_editor']}}</p>
+                                                <p class="mb-0 fw-normal">{{ $data['nama_editor'] ?? 'Burhan Harahab'}}</p>
                                             </td>
                                             @endif
                                             <td class="border-bottom-0">
-                                                <a href="/pesanan/detail/{{ $data['uuid'] }}" class="btn btn-warning btn-edit m-1" style="width: fit-content; height: fit-content; padding: 12px;">
-                                                    <img src="{{ asset($tPath.'assets2/icon/detail.svg') }}" alt="">
-                                                </a>
-                                                <button type="button" class="btn btn-danger btn-delete m-1" style="width: fit-content; height: fit-content; padding: 12px;" onclick="showModalDelete('{{ $data['uuid'] }}')">
-                                                    <img src="{{ asset($tPath.'assets2/icon/delete.svg') }}" alt="">
-                                                </button>
+                                                <div class="d-flex">
+                                                    <a href="/pesanan/detail/{{ $data['uuid'] }}" class="btn btn-warning m-1" style="width: 40px; height: 40px; padding: 0; display: flex; align-items: center; justify-content: center;">
+                                                        <img src="{{ asset($tPath.'assets2/icon/edit.svg') }}" alt="Edit" style="width: 20px; height: 20px;">
+                                                    </a>
+                                                    <button type="button" class="btn btn-danger m-1" style="width: 40px; height: 40px; padding: 0; display: flex; align-items: center; justify-content: center;" onclick="showModalDelete('{{ $data['uuid'] }}')">
+                                                        <img src="{{ asset($tPath.'assets2/icon/delete.svg') }}" alt="Delete" style="width: 20px; height: 20px;">
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                         @endforeach

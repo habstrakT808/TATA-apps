@@ -92,10 +92,11 @@ class DashboardSeeder extends Seeder
             'Tono Creative',
         ];
         
-        foreach ($names as $name) {
+        foreach ($names as $key => $name) {
             $id = DB::table('editor')->insertGetId([
                 'uuid' => Str::uuid(),
                 'nama_editor' => $name,
+                'email' => 'editor' . ($key + 1) . '@tata.com',
                 'jenis_kelamin' => rand(0, 1) ? 'laki-laki' : 'perempuan',
                 'no_telpon' => '08' . rand(1000000000, 9999999999),
             ]);

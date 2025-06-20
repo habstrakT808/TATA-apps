@@ -7,7 +7,7 @@ $tPath = app()->environment('local') ? '' : '';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Metode Pembayaran | TATA</title>
+    <title>Metode Pembayaran | TATA</title>
     <link href="{{ asset($tPath.'assets2/img/logo.png') }}" rel="icon">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA=="
@@ -17,146 +17,101 @@ $tPath = app()->environment('local') ? '' : '';
     <link rel="stylesheet" href="{{ asset($tPath.'assets2/css/popup.css') }}" />
     <link rel="stylesheet" href="{{ asset($tPath.'assets2/css/preloader.css') }}" />
     <style>
-    #btnTambah{
-        padding: 0px;
-        display: flex;
-        width: 160px;
-        height: 45px;
-        align-items: center;
-        justify-content: space-evenly;
+    .card {
         border: none;
-        font-size: 15px;
+        border-radius: 12px;
+        box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.05);
     }
-    #btnTambah img{
-        width: 30px;
-        height: 30px;
+    .card-body {
+        padding: 30px;
     }
-    th {
-        white-space: nowrap;
+    .table {
+        border-collapse: separate;
+        border-spacing: 0;
     }
-    th:nth-child(2) {
-        width: 100%;
+    .table thead {
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 8px 8px 0 0;
     }
-    td:last-child {
-        position: relative;
-        display: flex;
-        flex-direction: row;
-    }
-    .btn-edit,
-    .btn-delete{
-        padding: 0px;
-        display: flex;
-        width: 100px;
-        height: 40px;
-        align-items: center;
-        justify-content: space-evenly;
+    .table thead th {
+        padding: 15px;
+        font-weight: 600;
         border: none;
-        font-size: 17px;
     }
-    .btn-edit img,
-    .btn-delete img{
+    .table thead th:first-child {
+        border-radius: 8px 0 0 0;
+    }
+    .table thead th:last-child {
+        border-radius: 0 8px 0 0;
+    }
+    .table tbody tr {
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .table tbody tr:last-child {
+        border-bottom: none;
+    }
+    .table tbody td {
+        padding: 15px;
+        vertical-align: middle;
+    }
+    #btnTambah {
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 8px;
+        padding: 10px 20px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border: none;
+        height: 50px;
+    }
+    #btnTambah img {
         width: 24px;
         height: 24px;
     }
-    .btn-delete,
-    .btn-delete:hover{
-        background-color: #FA64B5;
+    .btn-edit {
+        background-color: #FFC107;
+        color: white;
+        border-radius: 6px;
+        padding: 6px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
     }
-    @media screen and (min-width: 700px) and (max-width: 1100px) {
-        #btnTambah{
-            width: 145px;
-            height: 40px;
-            font-size: 14px;
-        }
-        #btnTambah img{
-            width: 25px;
-            height: 25px;
-        }
-        .btn-edit,
-        .btn-delete{
-            width: 90px;
-            height: 40px;
-            font-size: 16px;
-        }
-        .btn-edit img,
-        .btn-delete img{
-            width: 22px;
-            height: 22px;
-        }
+    .btn-delete {
+        background-color: #FF5252;
+        color: white;
+        border-radius: 6px;
+        padding: 6px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
     }
-    @media screen and (min-width: 500px) and (max-width: 700px) {
-        #btnTambah{
-            width: 135px;
-            height: 35px;
-            font-size: 13px;
-        }
-        #btnTambah img{
-            width: 23px;
-            height: 23px;
-        }
-        .table{
-            margin-top: 7px;
-        }
-        .table>:not(caption)>*>*{
-            padding: 7px 7px;
-        }
-        th h6{
-            font-size: 14px;
-        }
-        td{
-            font-size: 13px;
-        }
-        td:last-child {
-            flex-direction: column;
-        }
-        .btn-edit,
-        .btn-delete{
-            width: 90px;
-            height: 40px;
-            font-size: 15px;
-        }
-        .btn-edit img,
-        .btn-delete img{
-            width: 21px;
-            height: 21px;
-        }
+    .btn-edit img, .btn-delete img {
+        width: 16px;
+        height: 16px;
     }
-    @media screen and (max-width: 500px) {
-        #btnTambah{
-            width: 125px;
-            height: 32px;
-            font-size: 12px;
-        }
-        #btnTambah img{
-            width: 20px;
-            height: 20px;
-        }
-        .table{
-            margin-top: 7px;
-        }
-        .table>:not(caption)>*>*{
-            padding: 5px 5px;
-        }
-        th h6{
-            font-size: 12px;
-        }
-        td{
-            font-size: 11px;
-        }
-        td:last-child {
-            flex-direction: column;
-        }
-        .btn-edit,
-        .btn-delete{
-            width: 80px;
-            height: 37px;
-            font-size: 14px;
-        }
-        .btn-edit img,
-        .btn-delete img{
-            width: 19px;
-            height: 19px;
-        }
+    .action-buttons {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+    .pagetitle h1 {
+        font-size: 24px;
+        font-weight: 600;
+        color: #333;
+    }
+    /* Add styling for the Aksi column to make it wider */
+    .table th:last-child {
+        width: 220px;
+        text-align: right;
+    }
+    .table td:last-child {
+        text-align: right;
     }
     </style>
 </head>
@@ -173,7 +128,7 @@ $tPath = app()->environment('local') ? '' : '';
     @endif
     <script>
     const domain = window.location.protocol + '//' + window.location.hostname + ":" + window.location.port;
-    const reff = '/metode-pembayaran';
+    const reff = '/payment-methods';
     var csrfToken = "{{ csrf_token() }}";
     var userAuth = @json($userAuth);
     </script>
@@ -192,48 +147,50 @@ $tPath = app()->environment('local') ? '' : '';
             @include('components.admin.header')
             <!--  Header End -->
             <div class="container-fluid" style="background-color: #F6F9FF">
-                <div class="pagetitle mt-2 mt-sm-3 mt-md-3 mt-lg-4 mb-2 mb-sm-3 mb-md-3 mb-lg-4">
-                    <h1>Kelola Metode Pembayaran</h1>
+                <div class="pagetitle mt-4 mb-4">
+                    <h1>Metode Pembayaran</h1>
                 </div>
                 <div class="d-flex align-items-stretch">
                     <div class="card w-100">
                         <div class="card-body p-4">
-                            <div class="d-flex justify-content-start mb-3">
-                                <a href="/metode-pembayaran/tambah" class="btn btn-success d-flex align-items-center justify-content-center gap-2" id="btnTambah" style="width: 200px; height: 60px; padding-left: 16px; padding-right: 6px;">
-                                    <img src="{{ asset($tPath.'assets2/icon/tambah.svg') }}" alt="Tambah" class="img-fluid" style="max-width: 50px;">
-                                    <span class="d-none d-sm-inline">Tambah Metode Pembayaran</span>
+                            <div class="d-flex justify-content-start mb-4">
+                                <a href="/payment-methods/tambah" class="btn" id="btnTambah">
+                                    <img src="{{ asset($tPath.'assets2/icon/tambah.svg') }}" alt="Tambah" class="img-fluid">
+                                    <span>Tambah Metode Pembayaran</span>
                                 </a>
                             </div>
                             <div class="table-responsive">
-                                <table class="table mb-0 align-middle">
-                                    <thead class="text-dark fs-4">
+                                <table class="table mb-0">
+                                    <thead>
                                         <tr>
-                                            <th class="border-bottom-0">
-                                                <h6 class="fw-semibold mb-0">No</h6>
-                                            </th>
-                                            <th class="border-bottom-0">
-                                                <h6 class="fw-semibold mb-0">Nama Rekening</h6>
-                                            </th>
+                                            <th>No</th>
+                                            <th>Nama Rekening</th>
+                                            <th>Deskripsi</th>
+                                            <th>Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         @php $no = 1; @endphp
                                         @foreach ($metodePembayaranData as $data)
                                         <tr>
-                                            <td class="border-bottom-0">
-                                                <h6 class="fw-semibold mb-0">{{ $no++ }}</h6>
-                                            </td>
-                                            <td class="border-bottom-0">
-                                                <span class="fw-normal">{{ $data['nama_metode_pembayaran'] }}
-                                                </span>
-                                            </td>
-                                            <td class="border-bottom-0">
-                                                <a href="/metode-pembayaran/edit/{{ $data['uuid'] }}" class="btn btn-warning btn-edit m-1" style="width: fit-content; height: fit-content; padding: 12px;">
-                                                    <img src="{{ asset($tPath.'assets2/icon/edit.svg') }}" alt="">
+                                            <td>{{ $no++ }}</td>
+                                            <td>
+                                                <a href="/payment-methods/detail/{{ $data['uuid'] }}" class="text-decoration-none text-dark">
+                                                    {{ $data['nama_metode_pembayaran'] }}
                                                 </a>
-                                                <button type="button" class="btn btn-danger btn-delete m-1" style="width: fit-content; height: fit-content; padding: 12px;" onclick="showModalDelete('{{ $data['uuid'] }}')">
-                                                    <img src="{{ asset($tPath.'assets2/icon/delete.svg') }}" alt="">
-                                                </button>
+                                            </td>
+                                            <td>Rekening ini digunakan untuk pembayaran</td>
+                                            <td>
+                                                <div class="action-buttons">
+                                                    <a href="/payment-methods/edit/{{ $data['uuid'] }}" class="btn btn-edit">
+                                                        <img src="{{ asset($tPath.'assets2/icon/edit.svg') }}" alt="Edit">
+                                                        <span class="ms-1">Edit</span>
+                                                    </a>
+                                                    <button type="button" class="btn btn-delete" onclick="showModalDelete('{{ $data['uuid'] }}')">
+                                                        <img src="{{ asset($tPath.'assets2/icon/delete.svg') }}" alt="Delete">
+                                                        <span class="ms-1">Delete</span>
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                         @endforeach
@@ -248,7 +205,7 @@ $tPath = app()->environment('local') ? '' : '';
         </div>
     </div>
     @php
-    $modalDelete = 'metode-pembayaran';
+    $modalDelete = 'payment-methods';
     $modalTitle = 'Konfirmasi Hapus Metode Pembayaran';
     $modalMessage = 'Apakah Anda yakin ingin menghapus metode pembayaran ini? Tindakan ini tidak dapat dibatalkan.';
     $confirmText = 'Hapus Metode Pembayaran';
@@ -303,7 +260,7 @@ $tPath = app()->environment('local') ? '' : '';
             var requestBody = {
                 id_metode_pembayaran: inpID.value.trim(),
             };
-            xhr.open("DELETE", "/metode-pembayaran/delete");
+            xhr.open("DELETE", "/payment-methods/delete");
             xhr.setRequestHeader("X-CSRF-TOKEN", csrfToken);
             xhr.setRequestHeader("Content-Type", "application/json");
             xhr.send(JSON.stringify(requestBody));

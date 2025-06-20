@@ -35,6 +35,65 @@ if(app()->environment('local')){
         #login-content {
             border-radius: 20px 0 0 20px;
             overflow: hidden !important;
+            background-color: #38AD5E;
+        }
+        
+        .welcome-section {
+            text-align: center;
+            padding: 0 20px;
+        }
+        
+        .welcome-section h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .welcome-section p {
+            font-size: 14px;
+            line-height: 1.4;
+            margin: 0;
+        }
+        
+        .input-icon {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            left: 15px;
+            width: 20px;
+            height: 20px;
+        }
+        
+        .login-form-container {
+            width: 70%;
+            max-width: 400px;
+        }
+        
+        .login-title {
+            font-size: 28px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 25px;
+        }
+        
+        .login-input {
+            height: 50px;
+            padding-left: 50px;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            background-color: #f8f9fa;
+            margin-bottom: 20px;
+        }
+        
+        .login-button {
+            background-color: #4D82F3;
+            border: none;
+            height: 50px;
+            font-size: 16px;
+            font-weight: 500;
+            width: 120px;
+            margin: 15px auto;
+            display: block;
         }
         
         /* Responsive fixes - maintain horizontal layout */
@@ -52,9 +111,8 @@ if(app()->environment('local')){
                 width: 65% !important; /* More space for form */
             }
             
-            main > div:last-child > div {
-                width: 80% !important; /* Wider form container */
-                left: 50% !important;
+            .login-form-container {
+                width: 85%;
             }
         }
         
@@ -72,9 +130,8 @@ if(app()->environment('local')){
                 width: 70% !important;
             }
             
-            main > div:last-child > div {
-                width: 90% !important;
-                left: 55% !important;
+            .login-form-container {
+                width: 90%;
             }
             
             #login-content {
@@ -102,36 +159,47 @@ if(app()->environment('local')){
     </script>
     <div class="page-wrapper" id="main-wrapper" data-layout="vertical" data-navbarbg="skin6" data-sidebartype="full" data-sidebar-position="fixed" data-header-position="fixed">
         <div class="position-relative overflow-hidden radial-gradient min-vh-100 d-flex align-items-center justify-content-center">
-            <main class="d-flex bg-white rounded-5" style="width: 80%; min-height: 70vh; max-height: 80vh;">
+            <main class="d-flex bg-white rounded-4 shadow" style="width: 80%; min-height: 70vh; max-height: 80vh;">
+                <!-- Left side - Green section -->
                 <div class="position-relative" style="width: 40%; min-height: 100%; overflow: hidden;">
                     <div id="login-content" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
-                    <div id="logo-content" class="position-absolute z-10 d-flex justify-content-center align-items-center flex-column-reverse" style="top: 20%; left: 50%; transform: translate(-50%, -50%);">
-                        <p class="text-white">Solusi Cerdas Design Cepat</p>
+                    
+                    <!-- Logo section -->
+                    <div id="logo-content" class="position-absolute" style="bottom: 60%; left: 50%; transform: translate(-50%, 0); width: 100%; z-index: 2; text-align: center;">
+                        <img src="{{ asset($tPath.'assets2/img/logo.png') }}" alt="Tata Logo" class="img-fluid" style="max-width: 220px; height: auto; display: block; margin: 0 auto;">
                     </div>
-                    <div class="position-absolute z-10" style="top: 50%; left: 50%; transform: translate(-50%, -50%);">
-                        <h2 class="text-white fs-5">Selamat Datang!</h2>
+                    
+                    <!-- Welcome section -->
+                    <div class="position-absolute welcome-section" style="bottom: 40%; left: 50%; transform: translate(-50%, 0); z-index: 2;">
+                        <h2 class="text-white">Selamat Datang!</h2>
                         <p class="text-white">Masukkan User anda dan Password untuk akses</p>
+                        <p class="text-white mt-4">Solusi Cerdas Design Cepat</p>
                     </div>
                 </div>
-                <div class="" style="width: 60%;">
-                    <div class="position-relative" style="width: 50%; top: 50%; left: 60%; transform: translate(-50%, -50%);">
-                        <h3>Login Admin</h3>
+                
+                <!-- Right side - Login form -->
+                <div class="d-flex align-items-center justify-content-center" style="width: 60%;">
+                    <div class="login-form-container">
+                        <h3 class="login-title">Login Admin</h3>
                         <form action="" id="loginForm">
-                            <div class="row">
-                                <div class="position-relative col-12 mb-3">
-                                    <input type="text" id="inpEmail" class="form-control rounded-3" style="padding-left: 45px;" required placeholder="Email">
-                                    <img src="{{ asset($tPath.'assets2/icon/login/inpEmail.png') }}" alt="" style="position: absolute; top: 50%; transform: translateY(-50%); left: 10px;">
+                            <!-- Email input -->
+                            <div class="position-relative mb-4">
+                                <img src="{{ asset($tPath.'assets2/icon/login/inpEmail.png') }}" alt="" class="input-icon">
+                                <input type="text" id="inpEmail" class="form-control login-input" required placeholder="Email">
                                 </div>
-                                <div class="position-relative col-12 mb-4">
-                                    <input id="inpPassword" type="password" class="form-control rounded-3" style="padding-left: 45px; padding-right: 45px;" oninput="showEyePass()" required placeholder="Password">
-                                    <img src="{{ asset($tPath.'assets2/icon/login/inpPassword.png') }}" alt="" style="position: absolute; top: 50%; transform: translateY(-50%); left: 10px;">
-                                    <div id="iconPass" onclick="showPass()" style="display: none;">
+                            
+                            <!-- Password input -->
+                            <div class="position-relative mb-4">
+                                <img src="{{ asset($tPath.'assets2/icon/login/inpPassword.png') }}" alt="" class="input-icon">
+                                <input id="inpPassword" type="password" class="form-control login-input" oninput="showEyePass()" required placeholder="Password">
+                                <div id="iconPass" onclick="showPass()" style="display: none; position: absolute; top: 50%; transform: translateY(-50%); right: 15px;">
                                         <img src="{{ asset($tPath.'assets2/icon/eye-slash.svg') }}" alt="" id="passClose">
                                         <img src="{{ asset($tPath.'assets2/icon/eye.svg') }}" alt="" id="passShow" style="display: none">
-                                    </div>
                                 </div>
-                                <input type="submit" class="position-relative btn btn-primary py-8 fs-4 mb-4 rounded-3" style="width: 40%; left: 50%; transform: translate(-50%, 0);" value="Login">
                             </div>
+                            
+                            <!-- Login button -->
+                            <input type="submit" class="btn btn-primary login-button rounded-3" value="Login">
                         </form>
                     </div>
                 </div>
@@ -165,11 +233,6 @@ if(app()->environment('local')){
             const loginPath = "{{ asset($tPath.'assets2/icon/login/login.svg') }}";
             if(loginContent){
                 loadSVG(loginPath, loginContent);
-            }
-            const logoContent = document.querySelector('#logo-content');
-            const logoPath = "{{ asset($tPath.'assets2/icon/logo.svg') }}";
-            if(logoContent){
-                loadSVG(logoPath, logoContent);
             }
         });
     </script>

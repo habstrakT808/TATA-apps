@@ -7,6 +7,7 @@ use Laravel\Sanctum\HasApiTokens;
 class Auth extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
+    protected $connection = 'mysql';
     protected $table = "auth";
     protected $primaryKey = "id_auth";
     public $incrementing = true;

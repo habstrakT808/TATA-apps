@@ -3,7 +3,7 @@ namespace App\Http\Controllers\Mobile;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-// use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Auth as LaravelAuth;
 use App\Models\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Controllers\UtilityController;
@@ -335,33 +335,27 @@ if ($request->hasFile('foto') && $request->file('foto')->isValid()) {
 
     //from admin
     public function createUser(Request $rt){
-        $validator = Validator::make($rt->only('email', 'nama_lengkap', 'jenis_kelamin', 'no_telpon', 'password', 'foto'), [
+        $validator = Validator::make($rt->only('email', 'nama', 'no_telpon', 'password'), [
             'email'=>'required|email',
-            'nama_lengkap' => 'required|min:3|max:50',
-            'jenis_kelamin' => 'required|in:laki-laki,perempuan',
+            'nama' => 'required|min:3|max:50',
             'no_telpon' => 'required|max:15',
             'password' => [
                 'required',
                 'string',
                 'min:8',
                 'max:25',
-                'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\p{P}\p{S}])[\p{L}\p{N}\p{P}\p{S}]+$/u',
             ],
-            'foto' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
         ],[
             'email.required'=>'Email wajib di isi',
             'email.email'=>'Email yang anda masukkan invalid',
-            'nama_lengkap.required' => 'Nama user wajib di isi',
-            'nama_lengkap.min'=>'Nama user minimal 3 karakter',
-            'nama_lengkap.max' => 'Nama user maksimal 50 karakter',
+            'nama.required' => 'Nama user wajib di isi',
+            'nama.min'=>'Nama user minimal 3 karakter',
+            'nama.max' => 'Nama user maksimal 50 karakter',
             'password.required'=>'Password wajib di isi',
             'password.min'=>'Password minimal 8 karakter',
             'password.max'=>'Password maksimal 25 karakter',
-          
-            'foto.image' => 'Foto user harus berupa gambar',
-            'foto.mimes' => 'Format foto user tidak valid. Gunakan format jpeg, png, jpg',
-            'foto.max' => 'Ukuran foto user tidak boleh lebih dari 5MB',
         ]);
+        
         if($validator->fails()){
             $errors = [];
             foreach($validator->errors()->toArray() as $field => $errorMessages){
@@ -370,33 +364,30 @@ if ($request->hasFile('foto') && $request->file('foto')->isValid()) {
             }
             return response()->json(['status' => 'error', 'message' => implode(', ', $errors)], 400);
         }
+        
         if(Auth::select("email")->whereRaw("BINARY email = ?",[$rt->input('email')])->exists()){
             return response()->json(['status'=>'error','message'=>'Email sudah digunakan'],400);
         }
-        if($rt->hasFile('foto')){
-            $fi = $rt->file('foto');
-            if(!($fi->isValid() && in_array($fi->extension(), ['jpeg', 'png', 'jpg']))){
-                return response()->json(['status'=>'error','message'=>'Format Foto tidak valid. Gunakan format jpeg, png, jpg'], 400);
-            }
-            $fh = $fi->hashName();
-            $fi->move(public_path('assets3/img/user/'), $fh);
-        }
+        
         $idAuth = Auth::insertGetId([
             'email' => $rt->input('email'),
             'password' => Hash::make($rt->input('password')),
             'role' => 'user',
         ]);
+        
         $ins = User::insert([
             'uuid' =>  Str::uuid(),
-            'nama_user' => $rt->input('nama_lengkap'),
-            'jenis_kelamin' => $rt->input('jenis_kelamin'),
+            'nama_user' => $rt->input('nama'),
             'no_telpon' => $rt->input('no_telpon'),
-            'foto' => $rt->hasFile('foto') ? $fh : '',
             'id_auth' => $idAuth,
         ]);
+        
         if(!$ins){
+            // Delete auth record if user insertion failed
+            Auth::where('id_auth', $idAuth)->delete();
             return response()->json(['status'=>'error','message'=>'Gagal menambahkan data User'], 500);
         }
+        
         return response()->json(['status' => 'success', 'message' => 'Data User berhasil ditambahkan']);
     }
     
@@ -434,5 +425,52 @@ if ($request->hasFile('foto') && $request->file('foto')->isValid()) {
     public function logoutAll(Request $request){
         $request->user()->tokens()->delete();
         return response()->json(['status' => 'success', 'message' => 'Berhasil logout dari semua perangkat']);
+    }
+    
+    /**
+     * Refresh token for mobile app
+     */
+    public function refreshToken(Request $request)
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User not found for token'
+                ], 401);
+            }
+
+            // Hapus semua token yang ada untuk user ini
+            $user->tokens()->delete();
+
+            // Buat token baru
+            $token = $user->createToken('mobile-auth-token', ['mobile-access'])->plainTextToken;
+
+            // Ambil data user dari tabel 'users'
+            $userData = User::where('id_auth', $user->id_auth)->first();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Token refreshed successfully',
+                'data' => [
+                    'access_token' => $token,
+                    'token_type' => 'Bearer',
+                    'user' => [
+                        'id' => $userData->uuid ?? null,
+                        'name' => $userData->nama_user ?? null,
+                        'email' => $user->email,
+                        'role' => $user->role,
+                    ]
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error refreshing token: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to refresh token: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

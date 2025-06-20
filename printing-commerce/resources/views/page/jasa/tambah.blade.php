@@ -251,9 +251,6 @@ $tPath = app()->environment('local') ? '' : '';
                     <h1>Tambah Jasa</h1>
                 </div>
                 <div class="card">
-                    <div class="alert alert-warning">
-                        <strong>Perhatian!</strong> Hanya boleh ada 3 jasa utama: Desain Logo, Desain Poster, dan Desain Banner.
-                    </div>
                     <form id="createForm">
                         <div class="section-title">
                             <h5>Gambar Produk</h5>
@@ -272,7 +269,7 @@ $tPath = app()->environment('local') ? '' : '';
 
                         <div class="form-group">
                             <label class="form-label">Kategori</label>
-                            <select class="form-control" name="kategori" id="kategoriSelect">
+                            <select class="form-control" name="kategori" id="kategoriSelect" onchange="updatePlaceholderImage()">
                                 <option value="">Pilih Kategori</option>
                                 <option value="logo">Desain Logo</option>
                                 <option value="poster">Desain Poster</option>
@@ -339,13 +336,70 @@ $tPath = app()->environment('local') ? '' : '';
     <script>
         let selectedFiles = []; // Array to store selected files
         
+        function updatePlaceholderImage() {
+            const kategori = document.getElementById('kategoriSelect').value;
+            const gallery = document.getElementById('imageGallery');
+            const addButton = gallery.querySelector('.add-image-btn');
+            
+            // Clear any existing placeholder images
+            const existingPlaceholders = gallery.querySelectorAll('.placeholder-image');
+            existingPlaceholders.forEach(item => gallery.removeChild(item));
+            
+            if (kategori) {
+                let placeholderSrc = '';
+                if (kategori === 'logo') {
+                    placeholderSrc = '{{ asset($tPath."assets3/img/jasa/logo/placeholder_logo.jpg") }}';
+                } else if (kategori === 'poster') {
+                    placeholderSrc = '{{ asset($tPath."assets3/img/jasa/poster/placeholder_poster.jpg") }}';
+                } else if (kategori === 'banner') {
+                    placeholderSrc = '{{ asset($tPath."assets3/img/jasa/banner/placeholder_banner.jpg") }}';
+                }
+                
+                if (placeholderSrc) {
+                    const galleryItem = document.createElement('div');
+                    galleryItem.className = 'image-item placeholder-image';
+                    
+                    const img = document.createElement('img');
+                    img.src = placeholderSrc;
+                    img.alt = 'Gallery Image';
+                    
+                    galleryItem.appendChild(img);
+                    gallery.insertBefore(galleryItem, addButton);
+                    
+                    // Add this image to the selected files if it's not already there
+                    const placeholderFile = {
+                        name: 'placeholder_' + kategori + '.jpg',
+                        isPlaceholder: true
+                    };
+                    
+                    // Check if we already have a placeholder file
+                    const existingPlaceholder = selectedFiles.find(f => f.isPlaceholder);
+                    if (existingPlaceholder) {
+                        // Replace it
+                        const index = selectedFiles.indexOf(existingPlaceholder);
+                        selectedFiles[index] = placeholderFile;
+                    } else {
+                        // Add it
+                        selectedFiles.push(placeholderFile);
+                    }
+                }
+            }
+        }
+        
         function handleImagesChange(event) {
             const files = event.target.files;
             const gallery = document.getElementById('imageGallery');
             const addButton = gallery.querySelector('.add-image-btn');
             
+            // Clear any existing placeholder images
+            const existingPlaceholders = gallery.querySelectorAll('.placeholder-image');
+            existingPlaceholders.forEach(item => gallery.removeChild(item));
+            
+            // Remove placeholder files from selectedFiles
+            selectedFiles = selectedFiles.filter(f => !f.isPlaceholder);
+            
             // Check if adding these files would exceed the 5 image limit
-            const currentImageCount = gallery.querySelectorAll('.gallery-item').length;
+            const currentImageCount = gallery.querySelectorAll('.image-item').length;
             const newImageCount = files.length;
             
             if (currentImageCount + newImageCount > 5) {
@@ -363,7 +417,7 @@ $tPath = app()->environment('local') ? '' : '';
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const galleryItem = document.createElement('div');
-                    galleryItem.className = 'gallery-item';
+                    galleryItem.className = 'image-item';
                     galleryItem.dataset.filename = file.name; // Store filename for reference
                     
                     const img = document.createElement('img');
@@ -390,12 +444,15 @@ $tPath = app()->environment('local') ? '' : '';
             event.target.value = '';
             
             // Hide add button if we've reached 5 images
-            if (gallery.querySelectorAll('.gallery-item').length >= 5) {
+            if (gallery.querySelectorAll('.image-item').length >= 5) {
                 addButton.style.display = 'none';
             }
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize placeholder image if a category is already selected
+            updatePlaceholderImage();
+            
             document.getElementById('createForm').addEventListener('submit', function(e) {
                 e.preventDefault();
                 

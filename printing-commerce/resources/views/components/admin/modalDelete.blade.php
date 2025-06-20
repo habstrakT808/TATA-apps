@@ -1,4 +1,4 @@
-<div id="modalDelete" onclick="closeModalDelete()">
+<div id="modalDelete" onclick="closeModalDelete()" data-type="{{ $modalDelete }}">
     <form id="deleteForm">
         <input type="hidden" name="uuid" id="inpID" class="form-control">
         <h1>{{ isset($modalTitle) ? $modalTitle : 'Konfirmasi Hapus ' . ucwords($modalDelete) }}</h1>

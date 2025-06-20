@@ -7,16 +7,25 @@ use App\Http\Controllers\Mobile\PesananController;
 use App\Http\Controllers\Mobile\TransaksiController;
 use App\Http\Controllers\Mobile\MailController;
 use App\Http\Controllers\Mobile\ReviewController;
-
+use App\Http\Controllers\Mobile\ChatController;
 use App\Http\Controllers\Mobile\PengerjaanController;
 use App\Http\Controllers\Mobile\MetodePembayaranController;
-use App\Http\Controllers\Services\ChatController;
+use App\Http\Controllers\Services\ChatController as ServicesChatController;
+use App\Http\Controllers\Api\ChatApiController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request){
     return $request->user();
 });
 
 Route::group(['prefix'=>'/mobile'], function(){
+    // Routes that don't require authentication
+    Route::post('/users/login', [UserController::class, 'login']);
+    Route::post('/users/register', [UserController::class, 'register']);
+    Route::post('/users/forgot-password', [UserController::class, 'forgotPassword']);
+    Route::post('/users/check-email', [UserController::class, 'checkEmail']);
+    Route::post('/users/login-google', [UserController::class, 'loginGoogle']);
+    Route::post('/users/refresh-token', [UserController::class, 'refreshToken']);
+    
     Route::group(['middleware'=>'auth.mobile'], function(){
         
         //API only jasa route
@@ -35,67 +44,57 @@ Route::group(['prefix'=>'/mobile'], function(){
             Route::post('/cancel', [PesananController::class, 'cancel']);
             Route::post('/download', [PesananController::class, 'downloadFiles']);
             Route::post('/review/add-by-uuid', [ReviewController::class, 'addReviewByUUID']);
-
+            Route::get('/detail/{uuid}', [PesananController::class, 'getDetail']);
         });
         
         //API only pengerjaan route
         Route::group(['prefix'=>'/pengerjaan'], function(){
             Route::get('/', [PengerjaanController::class, 'getAll']);
-            Route::get('/{id_revisi}', [PengerjaanController::class, 'getDetail']);
-            Route::post('/{id_revisi}/request-revisi', [PengerjaanController::class, 'requestRevision']);
-            Route::get('/{id_revisi}/download', [PengerjaanController::class, 'downloadFiles']);
-            Route::get('/{id_revisi}/history', [PengerjaanController::class, 'getRevisionHistory']);
-            Route::get('/{id_revisi}/{revisionUuid}', [PengerjaanController::class, 'getDetail']);
-            Route::post('/{id_revisi}/accept-work', [PengerjaanController::class, 'acceptWork']);
-            Route::post('/download', [PengerjaanController::class, 'downloadFiles']);
-        });
-
-        //API only metode pembayaran route
-        Route::group(['prefix'=>'/metode-pembayaran'], function(){
-            Route::get('/', [MetodePembayaranController::class, 'showAll']);
-            Route::get('/{uuid}', [MetodePembayaranController::class, 'showDetail']);
+            Route::get('/{uuid}', [PengerjaanController::class, 'getDetail']);
+            Route::post('/upload-hasil', [PengerjaanController::class, 'uploadHasil']);
+            Route::post('/revisi', [PengerjaanController::class, 'requestRevisi']);
         });
 
         //API only transaksi route
         Route::group(['prefix'=>'/transaksi'], function(){
-            Route::get('/', [TransaksiController::class, 'getAll']);
-            Route::get('/{order_id}', [TransaksiController::class, 'getDetail']);
-            Route::post('/create', [TransaksiController::class, 'createTransaction']);
-            Route::post('/upload-payment', [TransaksiController::class, 'uploadPaymentProof']);
-            Route::get('/details/{orderId}', [TransaksiController::class, 'getTransactionDetails']);
-            Route::get('/user-transactions', [TransaksiController::class, 'getUserTransactions']);
+            Route::post('/upload-bukti', [TransaksiController::class, 'uploadBukti']);
             Route::post('/cancel', [TransaksiController::class, 'cancelTransaction']);
+            Route::get('/detail/{order_id}', [TransaksiController::class, 'getDetail']);
         });
-
-        Route::group(['prefix'=>'/users'],function(){
-            Route::group(['prefix'=>'/profile'],function(){
-                Route::post('/', [UserController::class, 'getProfile']);
-                Route::post('/update', [UserController::class, 'updateProfile']);
-                Route::post('/foto', [UserController::class, 'checkFotoProfile']);
-            });
-            // Auth routes for logout
+        
+        //API only metode pembayaran route
+        Route::group(['prefix'=>'/metode-pembayaran'], function(){
+            Route::get('/', [MetodePembayaranController::class, 'getAll']);
+            Route::get('/{uuid}', [MetodePembayaranController::class, 'getDetail']);
+        });
+        
+        //API only user route
+        Route::group(['prefix'=>'/user'], function(){
+            Route::get('/profile', [UserController::class, 'getProfile']);
+            Route::post('/profile/update', [UserController::class, 'updateProfile']);
+            Route::post('/profile/update-photo', [UserController::class, 'updatePhoto']);
+            Route::post('/change-password', [UserController::class, 'changePassword']);
             Route::post('/logout', [UserController::class, 'logout']);
             Route::post('/logout-all', [UserController::class, 'logoutAll']);
+            Route::delete('/delete', [UserController::class, 'deleteUser']);
         });
-        Route::get('/dashboard',[UserController::class, 'dashboard']);
-    });
-
-    Route::group(['middleware' => 'user.guest'], function(){
-        Route::group(['prefix'=>'/users'],function(){
-            Route::post('/logingoogle', [UserController::class,'logingoogle']);
-            //review 
-            Route::get('/review', [ReviewController::class, 'getAllReviews']);
-
-            Route::post('/CekEmail', [UserController::class,'CekEmail']);
-            Route::post('/login', [UserController::class,'login']);
-            Route::post('/register', [UserController::class,'register']);
+        
+        //API only mail route
+        Route::group(['prefix'=>'/mail'], function(){
+            Route::post('/send-otp', [MailController::class, 'sendOTP']);
+            Route::post('/verify-otp', [MailController::class, 'verifyOTP']);
+            Route::post('/send-email-verification', [MailController::class, 'sendEmailVerification']);
+            Route::post('/verify-email', [MailController::class, 'verifyEmail']);
         });
-        // Tambahkan akses jasa untuk guest
-        Route::group(['prefix'=>'/jasa'], function(){
-            Route::get('/', [JasaController::class, 'showAll']);
-            Route::get('/{id?}', [JasaController::class, 'show']);
-            Route::get('/detail/{any}', [JasaController::class, 'showDetail']);
+        
+        //API only review route
+        Route::group(['prefix'=>'/review'], function(){
+            Route::get('/', [ReviewController::class, 'getAll']);
+            Route::get('/{id}', [ReviewController::class, 'getDetail']);
+            Route::post('/add', [ReviewController::class, 'addReview']);
         });
+        
+        //API only verify route
         Route::group(['prefix'=>'/verify'],function(){
             Route::group(['prefix'=>'/create'],function(){
                 Route::post('/password',[MailController::class, 'createForgotPassword']);
@@ -120,118 +119,147 @@ Route::group(['prefix'=>'/mobile'], function(){
 
 // Chat API Routes
 Route::middleware('auth:sanctum')->prefix('chat')->group(function () {
-    Route::post('/send', [ChatController::class, 'sendMessage']);
-    Route::get('/messages', [ChatController::class, 'getMessages']);
-    Route::post('/mark-read', [ChatController::class, 'markAsRead']);
-    Route::post('/update-fcm-token', [ChatController::class, 'updateFcmToken']);
+    Route::post('/send', [ServicesChatController::class, 'sendMessage']);
+    Route::get('/messages', [ServicesChatController::class, 'getMessages']);
+    Route::post('/mark-read', [ServicesChatController::class, 'markAsRead']);
+    Route::post('/update-fcm-token', [ServicesChatController::class, 'updateFcmToken']);
+});
+
+// New Chat API Routes (untuk versi UI Figma)
+Route::prefix('chats')->group(function () {
+    Route::get('/', [ChatApiController::class, 'getChats']);
+    Route::get('/{chatUuid}', [ChatApiController::class, 'getChatDetail']);
+    Route::post('/send', [ChatApiController::class, 'sendMessage']);
+    Route::post('/create', [ChatApiController::class, 'createChat']);
+    Route::post('/notify', [ChatApiController::class, 'sendNotification']);
 });
 
 // Test Firebase tanpa auth
-Route::get('/test-firebase', function() {
-    try {
-        $credentials = config('firebase.credentials.file');
-        $projectId = config('firebase.project_id');
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Firebase configuration loaded successfully',
-            'data' => [
-                'project_id' => $projectId,
-                'credentials_exists' => file_exists($credentials)
-            ]
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Error: ' . $e->getMessage()
-        ], 500);
-    }
-});
-
-// Test Firebase connection (sederhana)
-Route::post('/test-save', function(Request $request) {
-    try {
-        $request->validate([
-            'pesanan_uuid' => 'required|string',
-            'sender_uuid' => 'required|string',
-            'message' => 'required|string',
-        ]);
-
-        // Cek file kredensial ada
-        $credentials = config('firebase.credentials.file');
-        $projectId = config('firebase.project_id');
-        
-        // Buat folder struktur bila perlu
-        $path = storage_path('app/firebase/chat');
-        if (!is_dir($path)) {
-            mkdir($path, 0755, true);
-        }
-        
-        // Simpan pesan sebagai file JSON
-        $messageData = [
-            'pesanan_uuid' => $request->pesanan_uuid,
-            'sender_uuid' => $request->sender_uuid,
-            'message' => $request->message,
-            'timestamp' => time(),
-            'created_at' => date('Y-m-d H:i:s')
-        ];
-        
-        $filename = $path . '/' . time() . '_' . uniqid() . '.json';
-        file_put_contents($filename, json_encode($messageData, JSON_PRETTY_PRINT));
-        
-        return response()->json([
-            'success' => true,
-            'message' => 'Pesan disimpan secara lokal (Firestore simulation)',
-            'message_id' => basename($filename, '.json'),
-            'data' => [
-                'firebase_config' => [
-                    'project_id' => $projectId,
-                    'credentials_exists' => file_exists($credentials)
-                ],
-                'message' => $messageData
-            ]
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Error: ' . $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ], 500);
-    }
-});
-
-// Guest routes
-Route::group(['middleware' => ['api']], function () {
-    // ... existing routes ...
-
-    // Review route
-    Route::get('/users/review', [App\Http\Controllers\Services\ReviewController::class, 'getAllReviews']);
-    
-    // Jasa route
-    Route::get('/jasa/{id}', [App\Http\Controllers\Services\JasaController::class, 'getJasaById']);
-    Route::get('/mobile/jasa/{id}', [App\Http\Controllers\Services\JasaController::class, 'getJasaById']);
-    
-    // Pengerjaan route - perbaiki dengan namespace yang benar
-    Route::get('/mobile/pengerjaan/{id}', [\App\Http\Controllers\Api\Mobile\PengerjaanController::class, 'getDetail']);
-    
-    // ... rest of the code ...
-});
-
-// Test route untuk debugging jasa
-Route::get('/debug-jasa', function() {
-    $jasaList = \App\Models\Jasa::all();
-    $jasaData = [];
-    
-    foreach($jasaList as $jasa) {
-        $paketJasa = \App\Models\PaketJasa::where('id_jasa', $jasa->id_jasa)->get();
-        $jasaData[] = [
-            'jasa' => $jasa,
-            'paket_jasa' => $paketJasa
-        ];
-    }
-    
-    return response()->json([
-        'status' => 'success',
-        'data' => $jasaData
+Route::get('/test-firebase', function () {
+    $messaging = app('firebase.messaging');
+    $message = $messaging->newMessage();
+    $message->withNotification([
+        'title' => 'Test Notification',
+        'body' => 'This is a test notification from Laravel'
     ]);
+    $message->withData([
+        'key1' => 'value1',
+        'key2' => 'value2'
+    ]);
+    
+    try {
+        $messaging->send($message, ['YOUR_FCM_TOKEN_HERE']);
+        return response()->json(['status' => 'success', 'message' => 'Notification sent']);
+    } catch (\Exception $e) {
+        return response()->json(['status' => 'error', 'message' => $e->getMessage()]);
+    }
 });
+
+// API Login
+Route::post('/login', [UserController::class, 'login']);
+Route::post('/register', [UserController::class, 'register']);
+Route::post('/forgot-password', [UserController::class, 'forgotPassword']);
+Route::post('/reset-password', [UserController::class, 'resetPassword']);
+
+// API Jasa
+Route::get('/jasa', [JasaController::class, 'showAll']);
+Route::get('/jasa/{id}', [JasaController::class, 'show']);
+
+// API Metode Pembayaran
+Route::get('/metode-pembayaran', [MetodePembayaranController::class, 'getAll']);
+Route::get('/metode-pembayaran/{uuid}', [MetodePembayaranController::class, 'getDetail']);
+
+// API untuk Firebase Cloud Messaging
+Route::post('/register-fcm-token', [UserController::class, 'registerFcmToken'])->middleware('auth:sanctum');
+Route::post('/send-notification', [ServicesChatController::class, 'sendNotification'])->middleware('auth:sanctum');
+
+// API untuk upload file
+Route::post('/upload-file', [UserController::class, 'uploadFile'])->middleware('auth:sanctum');
+
+// API untuk download file
+Route::get('/download-file/{filename}', [UserController::class, 'downloadFile'])->middleware('auth:sanctum');
+
+// API untuk generate link
+Route::get('/generate-link/{filename}', [UserController::class, 'generateLink'])->middleware('auth:sanctum');
+
+// API untuk cek status
+Route::get('/check-status', [UserController::class, 'checkStatus'])->middleware('auth:sanctum');
+
+// API untuk cek versi
+Route::get('/check-version', [UserController::class, 'checkVersion']);
+
+// API untuk cek maintenance
+Route::get('/check-maintenance', [UserController::class, 'checkMaintenance']);
+
+// API untuk cek server
+Route::get('/check-server', [UserController::class, 'checkServer']);
+
+// API untuk cek koneksi
+Route::get('/check-connection', [UserController::class, 'checkConnection']);
+
+// API untuk cek auth
+Route::get('/check-auth', [UserController::class, 'checkAuth'])->middleware('auth:sanctum');
+
+// API untuk logout
+Route::post('/logout', [UserController::class, 'logout'])->middleware('auth:sanctum');
+
+// API untuk logout all
+Route::post('/logout-all', [UserController::class, 'logoutAll'])->middleware('auth:sanctum');
+
+// API untuk delete account
+Route::delete('/delete-account', [UserController::class, 'deleteAccount'])->middleware('auth:sanctum');
+
+// API untuk update profile
+Route::post('/update-profile', [UserController::class, 'updateProfile'])->middleware('auth:sanctum');
+
+// API untuk update photo
+Route::post('/update-photo', [UserController::class, 'updatePhoto'])->middleware('auth:sanctum');
+
+// API untuk change password
+Route::post('/change-password', [UserController::class, 'changePassword'])->middleware('auth:sanctum');
+
+// API untuk get profile
+Route::get('/profile', [UserController::class, 'getProfile'])->middleware('auth:sanctum');
+
+// API untuk get user
+Route::get('/user', [UserController::class, 'getUser'])->middleware('auth:sanctum');
+
+// API untuk get users
+Route::get('/users', [UserController::class, 'getUsers'])->middleware('auth:sanctum');
+
+// API untuk get user by id
+Route::get('/user/{id}', [UserController::class, 'getUserById'])->middleware('auth:sanctum');
+
+// API untuk get user by email
+Route::get('/user/email/{email}', [UserController::class, 'getUserByEmail'])->middleware('auth:sanctum');
+
+// API untuk get user by username
+Route::get('/user/username/{username}', [UserController::class, 'getUserByUsername'])->middleware('auth:sanctum');
+
+// API untuk get user by phone
+Route::get('/user/phone/{phone}', [UserController::class, 'getUserByPhone'])->middleware('auth:sanctum');
+
+// Tambahan rute API untuk chat mobile
+Route::group(['prefix' => 'chat', 'middleware' => ['auth:sanctum']], function() {
+    Route::post('/create', [ChatController::class, 'createOrGetChatRoom']);
+    Route::get('/list', [ChatController::class, 'getChatList']);
+    Route::get('/messages', [ChatController::class, 'getMessages']);
+    Route::post('/send', [ChatController::class, 'sendMessage']);
+    Route::post('/upload', [ChatController::class, 'uploadFile']);
+});
+
+// Tambahan rute API untuk chat mobile yang kompatibel dengan frontend Flutter
+Route::group(['prefix' => 'mobile/chat', 'middleware' => ['auth.mobile']], function() {
+    Route::post('/create', [ChatController::class, 'createOrGetChatRoom']);
+    Route::post('/get-or-create', [ChatController::class, 'getOrCreateChatForOrder']);
+    Route::get('/list', [ChatController::class, 'getChatList']);
+    Route::get('/messages', [ChatController::class, 'getMessages']);
+    Route::post('/send', [ChatController::class, 'sendMessage']);
+    Route::post('/send-by-pesanan', [ChatController::class, 'sendMessageByPesanan']);
+    Route::post('/upload', [ChatController::class, 'uploadFile']);
+    Route::post('/mark-read', [ChatController::class, 'markMessagesAsRead']);
+    Route::get('/messages-by-pesanan/{pesananUuid}', [ChatController::class, 'getMessagesByPesanan']);
+});
+
+// API endpoint for fetching reviews (accessible without authentication)
+Route::get('/users/review', [ReviewController::class, 'getAllReviews']);

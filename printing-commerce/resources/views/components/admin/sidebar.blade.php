@@ -15,7 +15,7 @@
     </div>
     <!-- End Sidebar scroll-->
     <!-- Sidebar navigation-->
-    <nav class="sidebar-nav scroll-sidebar mt-4" data-simplebar="" style="height: 70%;">
+    <nav class="sidebar-nav scroll-sidebar mt-4" data-simplebar="" style="height: calc(100% - 180px);">
         <ul id="sidebarnav" class="nav flex-column gap-1 p-0">
             <li class="nav-item sidebar-item {{ $nav == 'dashboard' ? 'selected' : ''}}">
                 <a class="nav-link sidebar-link {{ $nav == 'dashboard' ? 'active' : ''}} d-flex align-items-center py-2" href="/dashboard"
@@ -26,7 +26,7 @@
                     <span class="hide-menu text-white">Dashboard</span>
                 </a>
             </li>
-            @if($userAuth['role'] == 'super_admin' || $userAuth['role'] == 'admin')
+            
             <li class="nav-item sidebar-item {{ $nav == 'jasa' ? 'selected' : ''}}">
                 <a class="nav-link sidebar-link {{ $nav == 'jasa' ? 'active' : ''}} d-flex align-items-center py-2" href="/jasa" aria-expanded="false">
                     <span class="icon-holder me-2">
@@ -35,9 +35,7 @@
                     <span class="hide-menu text-white">Kelola Jasa</span>
                 </a>
             </li>
-            @endif
-
-            @if($userAuth['role'] == 'super_admin' || $userAuth['role'] == 'admin')
+            
             <li class="nav-item sidebar-item {{ $nav == 'pesanan' ? 'selected' : ''}}">
                 <a class="nav-link sidebar-link {{ $nav == 'pesanan' ? 'active' : ''}} d-flex align-items-center py-2" href="/pesanan"
                     aria-expanded="false">
@@ -47,10 +45,9 @@
                     <span class="hide-menu text-white">Kelola Pesanan</span>
                 </a>
             </li>
-            @endif
 
             <li class="nav-item sidebar-item {{ $nav == 'metode-pembayaran' ? 'selected' : ''}}">
-                <a class="nav-link sidebar-link {{ $nav == 'metode-pembayaran' ? 'active' : ''}} d-flex align-items-center py-2" href="/metode-pembayaran"
+                <a class="nav-link sidebar-link {{ $nav == 'metode-pembayaran' ? 'active' : ''}} d-flex align-items-center py-2" href="/payment-methods"
                     aria-expanded="false">
                     <span class="icon-holder me-2">
                         <img src="{{ asset($tPath.'assets2/icon/sidebar/metode-pembayaran.svg') }}" alt="Metode Pembayaran" class="white img-fluid" style="width: 26px; height: 26px;">
@@ -59,8 +56,8 @@
                 </a>
             </li>
 
-            <li class="nav-item sidebar-item {{ $nav == 'user' ? 'selected' : ''}}">
-                <a class="nav-link sidebar-link {{ $nav == 'user' ? 'active' : ''}} d-flex align-items-center py-2" href="/user"
+            <li class="nav-item sidebar-item {{ $nav == 'user-management' ? 'selected' : ''}}">
+                <a class="nav-link sidebar-link {{ $nav == 'user-management' ? 'active' : ''}} d-flex align-items-center py-2" href="/user-management"
                     aria-expanded="false">
                     <span class="icon-holder me-2">
                         <img src="{{ asset($tPath.'assets2/icon/sidebar/user.svg') }}" alt="User" class="white img-fluid" style="width: 26px; height: 26px;">
@@ -68,36 +65,20 @@
                     <span class="hide-menu text-white">Kelola User</span>
                 </a>
             </li>
-
-            <li class="nav-item sidebar-item {{ $nav == 'editor' ? 'selected' : ''}}">
-                <a class="nav-link sidebar-link {{ $nav == 'editor' ? 'active' : ''}} d-flex align-items-center py-2" href="/editor"
-                    aria-expanded="false">
+            
+            <!-- Logout button moved here, inside the navigation menu -->
+            <li class="nav-item sidebar-item mt-3">
+                <button class="nav-link sidebar-link d-flex align-items-center py-2 w-100" onclick="logout()" 
+                    style="outline: none; border: none; background-color: transparent; text-align: left;">
                     <span class="icon-holder me-2">
-                        <img src="{{ asset($tPath.'assets2/icon/sidebar/editor.svg') }}" alt="Editor" class="white img-fluid" style="width: 26px; height: 26px;">
+                        <img src="{{ asset($tPath.'assets2/icon/sidebar/logout.svg') }}" alt="Logout" class="white img-fluid" style="width: 26px; height: 26px;">
                     </span>
-                    <span class="hide-menu text-white">Kelola Editor</span>
-                </a>
+                    <span class="hide-menu text-white">Logout</span>
+                </button>
             </li>
-
-            @if($userAuth['role'] == 'super_admin')
-            <li class="nav-item sidebar-item {{ $nav == 'admin' ? 'selected' : ''}}">
-                <a class="nav-link sidebar-link {{ $nav == 'admin' ? 'active' : ''}} d-flex align-items-center py-2" href="/admin" aria-expanded="false">
-                    <span class="icon-holder me-2">
-                        <img src="{{ asset($tPath.'assets2/icon/sidebar/admin.svg') }}" alt="Admin" class="white img-fluid" style="width: 26px; height: 26px;">
-                    </span>
-                    <span class="hide-menu text-white">Kelola Admin</span>
-                </a>
-            </li>
-            @endif
         </ul>
         <!-- End Sidebar navigation -->
     </nav>
-    <div class="" style="position: relative; left: 50%; transform: translateX(-50%); margin-top: 50px; width: 88%;">
-            <button class="btn w-100 d-flex align-items-center justify-content-start gap-2" onclick="logout()" style="outline: none; border: none; background-color: transparent;">
-                <img src="{{ asset($tPath.'assets2/icon/sidebar/logout.svg') }}" alt="Logout" class="white img-fluid" style="width: 26px; height: 26px;">
-                <span class="hide-menu text-white">Logout</span>
-            </button>
-        </div>
 </aside>
 
 <style>

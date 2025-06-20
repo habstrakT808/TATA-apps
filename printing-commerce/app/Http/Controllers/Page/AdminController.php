@@ -106,15 +106,21 @@ class AdminController extends Controller
         return view('page.admin.tambah',$dataShow);
     }
     public function showEdit(Request $request, $uuid){
-        $adminData = Admin::select('uuid','nama_admin', 'role', 'email')->whereNotIn('role', ['admin'])->whereRaw("BINARY uuid = ?",[$uuid])->join('auth', 'admin.id_auth', '=', 'auth.id_auth')->first();
+        $adminData = Admin::select('admin.uuid', 'admin.nama_admin', 'auth.role', 'auth.email')
+            ->join('auth', 'admin.id_auth', '=', 'auth.id_auth')
+            ->where('admin.uuid', $uuid)
+            ->first();
+            
         if(is_null($adminData)){
             return redirect('/admin')->with('error', 'Data Admin tidak ditemukan');
         }
+        
         $dataShow = [
             'adminData' => $adminData,
             'headerData' => UtilityController::getHeaderData(),
             'userAuth' => array_merge(Admin::where('id_auth', $request->user()['id_auth'])->first()->toArray(), ['role' => $request->user()['role']]),
         ];
+        
         return view('page.admin.edit',$dataShow);
     }
 }

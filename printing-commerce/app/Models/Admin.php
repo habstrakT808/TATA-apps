@@ -11,7 +11,7 @@ class Admin extends Model
     protected $keyType = 'integer';
     public $timestamps = false;
     protected $fillable = [
-        'uuid', 'nama_admin', 'id_auth'
+        'uuid', 'nama_admin', 'no_telpon', 'id_auth'
     ];
     public function fromVerifikasiAdmin()
     {
