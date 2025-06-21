@@ -2,6 +2,8 @@
 namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
+
 class MetodePembayaran extends Model
 {
     use HasFactory;
@@ -12,8 +14,9 @@ class MetodePembayaran extends Model
     public $timestamps = false;
     protected $fillable = [
         'uuid', 
-        'nama_metode_pembayaran', 
-        'no_metode_pembayaran', 
+        'nama_metode',
+        'jenis_metode',
+        'no_metode_pembayaran',
         'deskripsi_1', 
         'deskripsi_2', 
         'harga_jasa',
@@ -25,7 +28,8 @@ class MetodePembayaran extends Model
         'total_harga',
         'bahan_poster',
         'ukuran_poster',
-        'total_harga_poster'
+        'total_harga_poster',
+        'is_active'
     ];
     
     protected $appends = [
@@ -40,6 +44,21 @@ class MetodePembayaran extends Model
         'ukuran_poster',
         'total_harga_poster'
     ];
+    
+    protected $casts = [
+        'is_active' => 'boolean'
+    ];
+    
+    protected static function boot()
+    {
+        parent::boot();
+        
+        static::creating(function ($model) {
+            if (empty($model->uuid)) {
+                $model->uuid = (string) Str::uuid();
+            }
+        });
+    }
     
     public function getHargaJasaAttribute()
     {

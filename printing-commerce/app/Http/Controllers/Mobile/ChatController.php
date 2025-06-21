@@ -10,13 +10,13 @@ use App\Models\Admin;
 use App\Models\Pesanan;
 use App\Models\Jasa;
 use App\Models\PaketJasa;
+use App\Models\Transaksi;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use App\Models\Transaksi;
+use Carbon\Carbon;
 
 class ChatController extends Controller
 {
@@ -907,6 +907,245 @@ class ChatController extends Controller
             DB::rollBack();
             Log::error('Error creating chat for order: ' . $e->getMessage());
             throw $e;
+        }
+    }
+
+    /**
+     * Confirm payment for an order by admin
+     */
+    public function confirmPayment(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'pesanan_uuid' => 'required|string|exists:pesanan,uuid',
+                'status' => 'required|in:confirm,reject',
+                'message' => 'nullable|string',
+                'rejection_reason' => 'required_if:status,reject|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $validator->errors()->first()
+                ], 400);
+            }
+
+            $adminId = Auth::id();
+            $admin = Admin::where('id_auth', $adminId)->first();
+
+            if (!$admin) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Admin tidak ditemukan'
+                ], 404);
+            }
+
+            // Get pesanan
+            $pesanan = Pesanan::where('uuid', $request->pesanan_uuid)->first();
+            if (!$pesanan) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Pesanan tidak ditemukan'
+                ], 404);
+            }
+
+            // Get transaksi
+            $transaksi = Transaksi::where('id_pesanan', $pesanan->id_pesanan)
+                ->where('status_transaksi', 'menunggu_konfirmasi')
+                ->first();
+
+            if (!$transaksi) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Transaksi tidak ditemukan atau status tidak valid'
+                ], 404);
+            }
+
+            // Begin transaction
+            DB::beginTransaction();
+
+            try {
+                if ($request->status == 'confirm') {
+                    // Update transaksi
+                    $transaksi->status_transaksi = 'lunas';
+                    $transaksi->confirmed_at = now();
+                    $transaksi->admin_notes = $request->message ?? 'Pembayaran dikonfirmasi oleh admin';
+                    $transaksi->save();
+
+                    // Update pesanan
+                    $pesanan->status_pesanan = 'diproses';
+                    $pesanan->confirmed_at = now();
+                    $pesanan->save();
+
+                    // Send message to chat
+                    $chatMessage = "✅ Pembayaran telah dikonfirmasi. Status pesanan berubah menjadi DIPROSES.";
+                    if ($request->message) {
+                        $chatMessage .= "\n\n" . $request->message;
+                    }
+
+                } else {
+                    // Reject payment
+                    $transaksi->status_transaksi = 'ditolak';
+                    $transaksi->admin_notes = $request->rejection_reason;
+                    $transaksi->save();
+
+                    // Update pesanan
+                    $pesanan->status_pesanan = 'dibatalkan';
+                    $pesanan->save();
+
+                    // Send message to chat
+                    $chatMessage = "❌ Pembayaran ditolak. Status pesanan berubah menjadi DIBATALKAN.\n\nAlasan: " . $request->rejection_reason;
+                }
+
+                // Send notification to chat
+                $chat = Chat::where('pesanan_uuid', $request->pesanan_uuid)->first();
+                
+                if ($chat) {
+                    $chatNotif = new ChatMessage();
+                    $chatNotif->uuid = Str::uuid();
+                    $chatNotif->chat_uuid = $chat->uuid;
+                    $chatNotif->sender_id = $admin->id_admin;
+                    $chatNotif->sender_type = 'admin';
+                    $chatNotif->message = $chatMessage;
+                    $chatNotif->message_type = 'text';
+                    $chatNotif->is_read = false;
+                    $chatNotif->save();
+                    
+                    // Update last message
+                    $chat->last_message = $chatMessage;
+                    $chat->updated_at = now();
+                    $chat->save();
+                }
+
+                DB::commit();
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => $request->status == 'confirm' ? 'Pembayaran berhasil dikonfirmasi' : 'Pembayaran berhasil ditolak',
+                    'data' => [
+                        'pesanan' => $pesanan,
+                        'transaksi' => $transaksi
+                    ]
+                ]);
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
+        } catch (\Exception $e) {
+            Log::error('Error confirming payment: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal mengonfirmasi pembayaran: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Send notification for chat messages via FCM
+     */
+    public function sendNotification(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'chat_id' => 'required|string',
+                'message' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $validator->errors()->first()
+                ], 400);
+            }
+
+            $userId = Auth::id();
+            $user = User::where('id_auth', $userId)->first();
+            
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak ditemukan'
+                ], 404);
+            }
+            
+            // Get the chat record
+            $chat = Chat::where('uuid', $request->chat_id)->first();
+            
+            if (!$chat) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Chat tidak ditemukan'
+                ], 404);
+            }
+            
+            // Get recipient (if sender is user, recipient is admin, and vice versa)
+            $recipientType = ($userId == $chat->user_id) ? 'admin' : 'user';
+            $recipientId = ($recipientType == 'admin') ? $chat->admin_id : $chat->user_id;
+            
+            // Get recipient's FCM token
+            $recipientToken = null;
+            
+            if ($recipientType == 'admin') {
+                $admin = Admin::find($chat->admin_id);
+                if ($admin) {
+                    $auth = $admin->auth;
+                    if ($auth) {
+                        $recipientToken = $auth->fcm_token;
+                    }
+                }
+            } else {
+                $recipient = User::find($chat->user_id);
+                if ($recipient) {
+                    $auth = $recipient->auth;
+                    if ($auth) {
+                        $recipientToken = $auth->fcm_token;
+                    }
+                }
+            }
+            
+            if (!$recipientToken) {
+                return response()->json([
+                    'status' => 'warning',
+                    'message' => 'Recipient has no FCM token registered'
+                ]);
+            }
+            
+            // Get sender info
+            $senderName = $user->name;
+            $orderReference = $chat->pesanan_uuid ?? null;
+            
+            // Prepare notification data
+            $notificationTitle = $orderReference 
+                ? "Pesan baru untuk pesanan #{$orderReference}" 
+                : "Pesan baru dari {$senderName}";
+                
+            $notificationBody = substr($request->message, 0, 100);
+            if (strlen($request->message) > 100) {
+                $notificationBody .= '...';
+            }
+            
+            // Send FCM notification using ChatService
+            app(\App\Services\ChatService::class)->sendNotification(
+                $recipientId, 
+                [
+                    'title' => $notificationTitle,
+                    'body' => $notificationBody,
+                    'order_id' => $orderReference ?? '',
+                    'chat_id' => $request->chat_id
+                ]
+            );
+            
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Notification sent successfully'
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error sending chat notification: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to send notification: ' . $e->getMessage()
+            ], 500);
         }
     }
 } 

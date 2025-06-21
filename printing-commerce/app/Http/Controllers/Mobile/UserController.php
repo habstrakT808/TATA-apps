@@ -114,18 +114,33 @@ class UserController extends Controller
   
   
   
-    public function CekEmail(Request $request){
+    // Fungsi untuk memeriksa ketersediaan email (untuk registrasi)
+    public function checkEmail(Request $request){
         $validator = Validator::make($request->only('email'), [
             'email' => 'required|email',
         ], [
             'email.required' => 'Email wajib di isi',
         ]);
         
-         if(Auth::select("email")->whereRaw("BINARY email = ?",[$request->input('email')])->exists()){
+        if ($validator->fails()) {
+            $errors = [];
+            foreach ($validator->errors()->toArray() as $field => $errorMessages) {
+                $errors[$field] = $errorMessages[0];
+                break;
+            }
+            return response()->json(['status' => 'error', 'message' => implode(', ', $errors)], 400);
+        }
+        
+        if(Auth::select("email")->whereRaw("BINARY email = ?",[$request->input('email')])->exists()){
             return response()->json(['status'=>'error','message'=>'Email sudah digunakan'],400);
         }else{
-            return response()->json(['status'=>'success','message'=>'Silahkan Lanjutkan'],200);}
-     
+            return response()->json(['status'=>'success','message'=>'Silahkan Lanjutkan'],200);
+        }
+    }
+    
+    // Menjaga backward compatibility dengan kode lama
+    public function CekEmail(Request $request){
+        return $this->checkEmail($request);
     }
 public function changePassEmail(Request $request)
 {
@@ -470,6 +485,329 @@ if ($request->hasFile('foto') && $request->file('foto')->isValid()) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to refresh token: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Firebase Authentication Login
+     */
+    public function firebaseLogin(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'email' => 'required|email',
+                'password' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $validator->errors()->first()
+                ], 400);
+            }
+
+            // Cari user berdasarkan email
+            $auth = Auth::where('email', $request->email)->first();
+            
+            if (!$auth) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Email tidak terdaftar'
+                ], 404);
+            }
+
+            // Verifikasi password
+            if (!Hash::check($request->password, $auth->password)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Password salah'
+                ], 401);
+            }
+
+            // Get user details
+            $user = User::where('id_auth', $auth->id_auth)->first();
+            
+            // Create token with abilities for mobile app
+            $token = $auth->createToken('firebase-auth-token', ['mobile-access'])->plainTextToken;
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Login berhasil',
+                'access_token' => $token,
+                'token_type' => 'Bearer',
+                'user' => [
+                    'id' => $user->uuid,
+                    'name' => $user->nama_user,
+                    'email' => $auth->email,
+                    'role' => $auth->role,
+                    'alamat' => $user->alamat,
+                    'no_telpon' => $user->no_telpon,
+                    'foto' => $user->foto
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Firebase Authentication Register
+     */
+    public function firebaseRegister(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'email' => 'required|email|unique:auth,email',
+                'password' => 'required|string|min:6',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $validator->errors()->first()
+                ], 400);
+            }
+
+            // Generate UUID
+            $uuid = (string) Str::uuid();
+
+            // Buat auth
+            $auth = new Auth();
+            $auth->email = $request->email;
+            $auth->password = Hash::make($request->password);
+            $auth->role = 'user';
+            $auth->save();
+
+            // Buat user
+            $user = new User();
+            $user->id_auth = $auth->id_auth;
+            $user->uuid = $uuid;
+            $user->nama_user = $request->name;
+            $user->save();
+
+            // Generate token
+            $token = $auth->createToken('firebase-auth-token', ['mobile-access'])->plainTextToken;
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Registrasi berhasil',
+                'access_token' => $token,
+                'token_type' => 'Bearer',
+                'user' => [
+                    'id' => $user->uuid,
+                    'name' => $user->nama_user,
+                    'email' => $auth->email,
+                    'role' => $auth->role
+                ]
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Google Sign-In
+     */
+    public function googleSignIn(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'email' => 'required|email',
+                'name' => 'required|string',
+                'id_token' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $validator->errors()->first()
+                ], 400);
+            }
+
+            // Cari user berdasarkan email
+            $auth = Auth::where('email', $request->email)->first();
+            
+            if (!$auth) {
+                // Jika user belum terdaftar, daftarkan user baru
+                $uuid = (string) Str::uuid();
+
+                // Buat auth
+                $auth = new Auth();
+                $auth->email = $request->email;
+                $auth->password = Hash::make(Str::random(16)); // Generate random password
+                $auth->role = 'user';
+                $auth->save();
+
+                // Buat user
+                $user = new User();
+                $user->id_auth = $auth->id_auth;
+                $user->uuid = $uuid;
+                $user->nama_user = $request->name;
+                $user->save();
+            } else {
+                // Jika user sudah terdaftar, ambil data user
+                $user = User::where('id_auth', $auth->id_auth)->first();
+            }
+
+            // Generate token
+            $token = $auth->createToken('firebase-google-auth-token', ['mobile-access'])->plainTextToken;
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Login berhasil',
+                'access_token' => $token,
+                'token_type' => 'Bearer',
+                'user' => [
+                    'id' => $user->uuid,
+                    'name' => $user->nama_user,
+                    'email' => $auth->email,
+                    'role' => $auth->role,
+                    'alamat' => $user->alamat,
+                    'no_telpon' => $user->no_telpon,
+                    'foto' => $user->foto
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update FCM token
+     */
+    public function updateFCMToken(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'fcm_token' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $validator->errors()->first()
+                ], 400);
+            }
+
+            $userId = auth()->user()->id_auth;
+            $auth = Auth::find($userId);
+            
+            if (!$auth) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak ditemukan'
+                ], 404);
+            }
+
+            // Update FCM token
+            $auth->fcm_token = $request->fcm_token;
+            $auth->save();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'FCM token berhasil diperbarui',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get user profile
+     */
+    public function getProfile(Request $request)
+    {
+        try {
+            $auth = $request->user();
+            
+            if (!$auth) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak terautentikasi'
+                ], 401);
+            }
+            
+            $user = User::where('id_auth', $auth->id_auth)->first();
+            
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Profile user tidak ditemukan'
+                ], 404);
+            }
+            
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Profile berhasil diambil',
+                'data' => [
+                    'user' => [
+                        'id' => $user->uuid,
+                        'name' => $user->nama_user,
+                        'email' => $auth->email,
+                        'role' => $auth->role,
+                        'alamat' => $user->alamat,
+                        'no_telpon' => $user->no_telpon,
+                        'foto' => $user->foto
+                    ]
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error getting user profile: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Terjadi kesalahan server'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get user reviews
+     */
+    public function getUserReviews(Request $request)
+    {
+        try {
+            // Return sample reviews for now
+            $sampleReviews = [
+                [
+                    'id' => '1',
+                    'name' => 'John Doe',
+                    'rating' => 5,
+                    'feedback' => 'Pelayanan sangat memuaskan dan hasil desain bagus!',
+                    'avatar_url' => null
+                ],
+                [
+                    'id' => '2',
+                    'name' => 'Jane Smith',
+                    'rating' => 4,
+                    'feedback' => 'Desain sesuai dengan keinginan, pengerjaan cepat.',
+                    'avatar_url' => null
+                ]
+            ];
+            
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Review berhasil diambil',
+                'data' => $sampleReviews
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error getting user reviews: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Terjadi kesalahan server'
             ], 500);
         }
     }
