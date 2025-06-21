@@ -7,6 +7,8 @@ import 'package:TATA/BeforeLogin/register1Pages.dart';
 import 'package:TATA/helper/user_preferences.dart';
 import 'package:TATA/main.dart';
 import 'package:TATA/sendApi/Server.dart';
+import 'package:TATA/sendApi/userApi.dart';
+import 'package:TATA/services/AuthService.dart';
 import 'package:TATA/src/CustomWidget.dart';
 // import 'package:TATA/src/Server.dart';
 import 'package:TATA/src/pageTransition.dart';
@@ -23,6 +25,7 @@ import 'dart:async';
 // import 'package:google_sign_in/google_sign_in.dart';
 
 import 'package:http/http.dart' as http;
+import 'package:TATA/helper/fcm_helper.dart';
 
 class page_login extends StatefulWidget {
   static String id_user = "";
@@ -33,15 +36,15 @@ class page_login extends StatefulWidget {
 }
 
 class _page_login extends State<page_login> {
+  final AuthService _authService = AuthService();
   TextEditingController emailController = TextEditingController();
   TextEditingController passwordController = TextEditingController();
-  Future _ceklogin() async {
+  
+  Future<void> _ceklogin() async {
     try {
+      print("Login pressed");
       CustomWidget.NotifLoading(context);
-      final response = await http.post(Server.urlLaravel("users/login"), body: {
-        "email": emailController.text,
-        "password": passwordController.text
-      });
+      
       if (emailController.text.isEmpty || passwordController.text.isEmpty) {
         setState(() {
           Navigator.pop(context);
@@ -49,104 +52,108 @@ class _page_login extends State<page_login> {
           sizeerror = 14;
           errorText = "Masukkan Email dan Password\ndengan benar!";
         });
-      } else {
-        String jsonData = "[]";
-        if (response.statusCode == 200) {
-          jsonData = response.body.toString();
-          if (jsonData != "[]") {
-            Navigator.pop(context);
-            final data = jsonDecode(response.body);
-            Map<String, dynamic> detailUser = json.decode(response.body);
-            print("JsonData = $jsonData");
-            isWrong = false;
-            UserPreferences.saveUser(data['data']);
-            CustomWidget.NotifBerhasilLogin(context, MainPage());
-            page_login.id_user = detailUser['id'].toString();
-            print("id user = ${detailUser['id']}");
-            print("id user = ${response.body}");
-          } else {
-            Navigator.pop(context);
-            setState(() {
-              print("kesalahan");
-              isWrong = true;
-              errorText = "Email atau Password Salah!";
-              sizeerror = 18;
-              print("JsonData = $jsonData");
-            });
-          }
-        } else if (response.statusCode == 401) {
-          Navigator.pop(context);
-          isWrong = true;
-          errorText = "Email atau Password Salah!";
-          sizeerror = 18;
-          setState(() {});
-          print("Responseee = ${response.body}");
-        } else {
-          print("Status code = ${response.statusCode}");
-          print("Response = ${response.body}");
+        return;
+      }
+      
+      try {
+        // Login menggunakan Firebase Authentication
+        final userCredential = await _authService.signInWithEmailPassword(
+          emailController.text,
+          passwordController.text,
+        );
+        
+        // Login berhasil
+        Navigator.pop(context); // Tutup dialog loading
+        isWrong = false;
+        
+        // Verifikasi token tersimpan dengan baik
+        final userData = await UserPreferences.getUser();
+        print('Stored user data: ${userData != null ? 'Data ada' : 'Data tidak ada'}');
+        
+        // Navigasi ke halaman utama
+        CustomWidget.NotifBerhasilLogin(context, MainPage());
+        
+        if (userData != null && userData['user'] != null) {
+          page_login.id_user = userData['user']['id'].toString();
+          print("id user = ${userData['user']['id']}");
         }
+      } on FirebaseAuthException catch (e) {
+        Navigator.pop(context);
+        setState(() {
+          isWrong = true;
+          
+          switch (e.code) {
+            case 'user-not-found':
+              errorText = "Email tidak terdaftar!";
+              break;
+            case 'wrong-password':
+              errorText = "Password salah!";
+              break;
+            case 'invalid-email':
+              errorText = "Format email tidak valid!";
+              break;
+            case 'user-disabled':
+              errorText = "Akun telah dinonaktifkan!";
+              break;
+            default:
+              errorText = "Gagal login: ${e.message}";
+          }
+          
+          sizeerror = 14;
+        });
+      } catch (e) {
+        Navigator.pop(context);
+        setState(() {
+          isWrong = true;
+          errorText = "Gagal login: $e";
+          sizeerror = 14;
+        });
       }
     } catch (e) {
       Navigator.pop(context);
       CustomWidget.NotifGagal(context);
-      // Tangani kesalahan koneksi atau kesalahan lainnya
       print("Error: $e");
     }
   }
 
-  Future _ceklogingoogle(String emailgoogle) async {
+  Future<void> _loginWithGoogle() async {
     try {
       CustomWidget.NotifLoading(context);
-      final response = await http.post(Server.urlLaravel("users/logingoogle"),
-          body: {"email": emailgoogle});
-      if (emailgoogle.isEmpty) {
-        setState(() {
-          Navigator.pop(context);
-          isWrong = true;
-          sizeerror = 14;
-          errorText = "Pilih Email yang Valid!";
-        });
-      } else {
-        String jsonData = "[]";
-        if (response.statusCode == 200) {
-          jsonData = response.body.toString();
-          if (jsonData != "[]") {
-            Navigator.pop(context);
-            final data = jsonDecode(response.body);
-            Map<String, dynamic> detailUser = json.decode(response.body);
-            print("JsonData = $jsonData");
-            isWrong = false;
-            UserPreferences.saveUser(data['data']);
-            CustomWidget.NotifBerhasilLogin(context, MainPage());
-            page_login.id_user = detailUser['id'].toString();
-            print("id user = ${detailUser['id']}");
-            print("id user = ${response.body}");
-          } else {
-            Navigator.pop(context);
-            setState(() {
-              print("kesalahan");
-              isWrong = true;
-              errorText = "Email atau Password Salah!";
-              sizeerror = 18;
-              print("JsonData = $jsonData");
-            });
-          }
-        } else if (response.statusCode == 401) {
-          Navigator.pop(context);
-          isWrong = true;
-          errorText = "Email Belum Terdaftar!";
-          sizeerror = 18;
-          setState(() {});
-          print("Responseee = ${response.body}");
+      
+      try {
+        // Login dengan Google menggunakan Firebase Authentication
+        final userCredential = await _authService.signInWithGoogle();
+        
+        // Login berhasil
+        Navigator.pop(context); // Tutup dialog loading
+        
+        // Verifikasi data tersimpan
+        final userData = await UserPreferences.getUser();
+        
+        if (userData != null && userData['user'] != null) {
+          page_login.id_user = userData['user']['id'].toString();
+          print("id user = ${userData['user']['id']}");
+          
+          // Navigasi ke halaman utama
+          CustomWidget.NotifBerhasilLogin(context, MainPage());
         } else {
-          print("Status code = ${response.statusCode}");
-          print("Response = ${response.body}");
+          setState(() {
+            isWrong = true;
+            errorText = "Gagal mendapatkan data user dari server";
+            sizeerror = 14;
+          });
         }
+      } catch (e) {
+        Navigator.pop(context);
+        setState(() {
+          isWrong = true;
+          errorText = "Gagal login dengan Google: $e";
+          sizeerror = 14;
+        });
       }
     } catch (e) {
       Navigator.pop(context);
       CustomWidget.NotifGagal(context);
-      // Tangani kesalahan koneksi atau kesalahan lainnya
       print("Error: $e");
     }
   }
@@ -178,6 +185,8 @@ class _page_login extends State<page_login> {
 
     emailFocusNode.dispose();
     passwordFocusNode.dispose();
+    emailController.dispose();
+    passwordController.dispose();
     super.dispose();
   }
 
@@ -293,27 +302,7 @@ class _page_login extends State<page_login> {
                                     style: CustomButton.GoogleButton(
                                         CustomColors.whiteColor),
                                     onPressed: () async {
-                                      await GoogleSignInService
-                                          .signOut(); // Tambahkan ini agar bisa login ulang
-                                      await FirebaseAuth.instance.signOut();
-
-                                      final user = await GoogleSignInService
-                                          .signInWithGoogle();
-                                      if (user != null) {
-                                        print("Login sukses: ${user.email}");
-                                        setState(() {
-                                          print("Login presseedd");
-                                          try {
-                                            _ceklogingoogle("${user.email}");
-                                            print("press");
-                                          } catch ($e) {
-                                            CustomWidget.NotifGagal(context);
-                                            print("ERRORRR ${$e}");
-                                          }
-                                        });
-                                      } else {
-                                        print("Login dibatalkan.");
-                                      }
+                                      await _loginWithGoogle();
                                     },
                                     child: Row(
                                       mainAxisAlignment:
@@ -532,7 +521,7 @@ class _page_login extends State<page_login> {
                                           PageRouteBuilder(
                                             pageBuilder: ((context, animation,
                                                     secondaryAnimation) =>
-                                                const Lupapassword1()),
+                                                const LupaPassword1()),
                                             transitionsBuilder: (context,
                                                 animation,
                                                 secondaryAnimation,

@@ -10,6 +10,13 @@ import 'dart:async';
 import 'package:pinput/pinput.dart';
 import 'package:lottie/lottie.dart';
 import 'package:TATA/helper/emailjs_otp.dart';
+import 'package:TATA/services/AuthService.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:TATA/src/CustomWidget.dart';
+import 'package:TATA/helper/user_preferences.dart';
+import 'package:TATA/BeforeLogin/page_login.dart';
 
 class Register2 extends StatefulWidget {
   final RegisterData registerData;
@@ -30,6 +37,12 @@ class _Register2State extends State<Register2> {
   bool _isTimerRunning = true;
   String? _sentOtp;
   bool _isSendingOtp = false;
+  final AuthService _authService = AuthService();
+  
+  // Tambahkan variabel yang diperlukan
+  final TextEditingController _alamatController = TextEditingController();
+  String? _selectedProvinsi;
+  String? _selectedKota;
 
   @override
   void initState() {
@@ -45,50 +58,136 @@ class _Register2State extends State<Register2> {
     print("data : ${widget.registerData.namaUser}");
   }
 
-  Future<void> _registerUser() async {
-    final result = await UserApi.register(
-        widget.registerData.email,
-        widget.registerData.noHp,
-        widget.registerData.namaUser,
-        widget.registerData.pasword,
-        widget.registerData.pasword);
-    if (result != null) {
-      showDataPrint();
-      if (result['status'] == "success") {
-        print("Result : $result");
-        // Berhasil mendaftar
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const Register3pages()),
+  Future<void> _register() async {
+    try {
+      CustomWidget.NotifLoading(context);
+      
+      // Simpan nomor telepon ke UserPreferences
+      await UserPreferences.savePhoneNumber(widget.registerData.noHp);
+      
+      try {
+        // Registrasi ke Firebase Auth dan Laravel backend
+        final userCredential = await _authService.registerWithEmailPassword(
+          widget.registerData.namaUser,
+          widget.registerData.email,
+          widget.registerData.pasword,
         );
-      } else if (result['status'] == "error") {
-        print("Resultt : $result");
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Pendaftaran gagal: ${result['message']}')),
+        
+        // Update data tambahan di Laravel backend
+        try {
+          // Dapatkan token dengan benar
+          final token = await UserPreferences.getToken();
+          debugPrint('Using token for profile update: $token');
+          
+          if (token != null) {
+            final response = await http.post(
+              Server.urlLaravel('user/profile/update'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': token,
+              },
+              body: jsonEncode({
+                'no_telpon': widget.registerData.noHp,
+              }),
+            );
+            
+            debugPrint('Update profile response: ${response.statusCode} - ${response.body}');
+          } else {
+            debugPrint('No token available for profile update');
+          }
+        } catch (e) {
+          debugPrint('Error updating profile: $e');
+          // Lanjutkan proses meskipun update profil gagal
+        }
+        
+        // Registrasi berhasil
+        Navigator.pop(context); // Tutup dialog loading
+        
+        // Tampilkan notifikasi sukses dan navigasi ke halaman login
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const page_login(),
+          ),
         );
-      } else {
-        print("Resulttt : $result");
-        if (!mounted) return;
+        
+        // Tampilkan notifikasi sukses
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content:
-                  Text('Pendaftaran gagal: ada kesalahan pengiriman data')),
+            content: Text("Registrasi berhasil! Silakan login dengan akun Anda."),
+            backgroundColor: CustomColors.secondaryColor,
+            duration: Duration(seconds: 3),
+          ),
         );
+      } on FirebaseAuthException catch (e) {
+        Navigator.pop(context); // Tutup dialog loading
+        
+        String errorMessage;
+        switch (e.code) {
+          case 'email-already-in-use':
+            errorMessage = "Email sudah digunakan";
+            break;
+          case 'invalid-email':
+            errorMessage = "Format email tidak valid";
+            break;
+          case 'weak-password':
+            errorMessage = "Password terlalu lemah";
+            break;
+          default:
+            errorMessage = "Gagal registrasi: ${e.message}";
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: CustomColors.redColor,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } catch (e) {
+        // Tangani error lainnya termasuk FCM error
+        Navigator.pop(context); // Tutup dialog loading
+        
+        // Jika error berkaitan dengan FCM, abaikan dan tetap anggap registrasi berhasil
+        if (e.toString().contains('firebase_messaging') || e.toString().contains('FCM')) {
+          debugPrint("FCM Error terjadi, tetapi registrasi tetap dilanjutkan: $e");
+          
+          // Tampilkan notifikasi sukses dan navigasi ke halaman login
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const page_login(),
+            ),
+          );
+          
+          // Tampilkan notifikasi sukses
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Registrasi berhasil! Silakan login dengan akun Anda."),
+              backgroundColor: CustomColors.secondaryColor,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        } else {
+          // Error lain selain FCM
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Terjadi kesalahan: $e"),
+              backgroundColor: CustomColors.redColor,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
       }
-    } else {
-      print("gagal : $result");
-      if (!mounted) return;
+    } catch (e) {
+      Navigator.pop(context); // Tutup dialog loading
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text('Pendaftaran gagal: ada kesalahan pengiriman data')),
+          content: Text("Terjadi kesalahan: $e"),
+          backgroundColor: CustomColors.redColor,
+          duration: Duration(seconds: 3),
+        ),
       );
     }
-    if (!mounted) return;
-    setState(() {
-      _isLoading = false;
-    });
   }
 
   @override
@@ -96,6 +195,7 @@ class _Register2State extends State<Register2> {
     pinController.dispose();
     focusNode.dispose();
     _timer?.cancel();
+    _alamatController.dispose();
     super.dispose();
   }
 
@@ -163,7 +263,7 @@ class _Register2State extends State<Register2> {
       setState(() => _isLoading = true);
       Future.delayed(const Duration(seconds: 1), () {
         if (!mounted) return;
-        _registerUser();
+        _register();
       });
     }
   }

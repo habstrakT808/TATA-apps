@@ -2,11 +2,27 @@ import 'package:flutter/foundation.dart';
 import 'dart:io';
 
 class Server {
-  static const String ROUTE = "http://localhost:8000/api/";
+  // URL yang berbeda berdasarkan platform (web atau mobile)
+  static const String ROUTE = kIsWeb
+      ? "http://localhost:8000/api/"
+      : "http://10.0.2.2:8000/api/";
   static const bool isDevelopment = true; // Set ke false saat produksi
 
   static Uri urlLaravel(String url) {
-    return Uri.parse("${ROUTE}mobile/$url");
+    // Pastikan semua endpoint menggunakan prefix mobile/
+    if (!url.startsWith("mobile/") && !url.contains("auth/")) {
+      // Khusus untuk endpoint users/register dan users/login, tambahkan prefix mobile/
+      if (url == "users/register" || url == "users/login" || url == "users/check-email" || 
+          url == "users/forgot-password" || url.startsWith("users/")) {
+        return Uri.parse("${ROUTE}mobile/$url");
+      }
+      // Pastikan endpoint user/profile menggunakan prefix mobile/
+      if (url == "user/profile") {
+        return Uri.parse("${ROUTE}mobile/$url");
+      }
+      return Uri.parse("${ROUTE}mobile/$url");
+    }
+    return Uri.parse("${ROUTE}$url");
   }
 
   static String UrlImageReferensi(String uuid, String url) {

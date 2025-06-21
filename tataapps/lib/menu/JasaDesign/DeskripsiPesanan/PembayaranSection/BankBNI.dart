@@ -99,7 +99,7 @@ class _BNIPaymentPageState extends State<BNIPaymentPage> {
         contentType: MediaType('image', 'jpeg'),
       );
       request.files.add(image);
-    } else if (!kIsWeb && widget.imageFile != null && widget.imageFile!.existsSync()) {
+    } else if (widget.imageFile != null) {
       // Untuk mobile
       final image = await http.MultipartFile.fromPath(
         'gambar_referensi',
@@ -116,12 +116,29 @@ class _BNIPaymentPageState extends State<BNIPaymentPage> {
 
       if (response.statusCode == 201) {
         print("Pesanan berhasil: ${resJson['data']['id_pesanan']}");
+        
+        // Tambahkan flag create_chat=true untuk membuat chat room otomatis
+        final String pesananId = resJson['data']['id_pesanan'];
+        final chatResponse = await http.post(
+          Server.urlLaravel('chat/create-for-order'),
+          headers: {
+            'Authorization': 'Bearer ${data['access_token']}',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'pesanan_uuid': pesananId,
+          }),
+        );
+        
+        final chatData = jsonDecode(chatResponse.body);
+        print("Chat room ${chatData['status'] == 'success' ? 'berhasil dibuat' : 'gagal dibuat'}: ${chatData['message']}");
 
         Navigator.push(
           context,
           SmoothPageTransition(
             page: BuktiPemesananPage(
-              nomorPemesanan: nomorPemesanan,
+              nomorPemesanan: pesananId,
               id_jasa: widget.id_jasa,
               id_paket_jasa: widget.id_paket_jasa,
               jenisPesanan: widget.jenisPesanan,

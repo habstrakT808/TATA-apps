@@ -1,157 +1,228 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:TATA/helper/user_preferences.dart';
 import 'package:TATA/models/ChatModel.dart';
 import 'package:TATA/sendApi/Server.dart';
 import 'package:http/http.dart' as http;
 
-class ChatApiService {
-  // Mengambil daftar chat room untuk user
-  static Future<List<ChatRoom>> getChatRooms() async {
+class ChatService {
+  // Mengambil daftar chat
+  static Future<List<ChatModel>> getChatList() async {
     try {
-      final userData = await UserPreferences.getUser();
-      if (userData == null) {
-        return [];
+      final token = await UserPreferences.getToken();
+      if (token == null) {
+        throw Exception('Token tidak ditemukan');
       }
-
+      
       final response = await http.get(
-        Server.urlLaravel('chat/rooms'),
+        Server.urlLaravel('mobile/chat/list'),
         headers: {
           'Accept': 'application/json',
-          'Authorization': 'Bearer ${userData['access_token']}',
+          'Authorization': token,
         },
       );
-
+      
+      debugPrint('Get chat list status: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['success'] == true && data['data'] != null) {
-          final List<dynamic> rooms = data['data'];
-          return rooms.map((room) => ChatRoom.fromJson(room)).toList();
-        }
+        final List<dynamic> chats = data['data'];
+        
+        return chats.map((chat) => ChatModel.fromJson(chat)).toList();
+      } else if (response.statusCode == 401) {
+        // Token tidak valid, hapus token
+        await UserPreferences.clearToken();
+        throw Exception('Sesi telah berakhir, silahkan login kembali');
+      } else {
+        throw Exception('Gagal mengambil daftar chat: ${response.body}');
       }
-
-      return [];
     } catch (e) {
-      print('Error getting chat rooms: $e');
-      return [];
+      debugPrint('Error getting chat list: $e');
+      rethrow;
     }
   }
-
-  // Mengambil pesan chat untuk pesanan tertentu
-  static Future<List<ChatMessage>> getChatMessages(String pesananUuid) async {
+  
+  // Mengambil detail chat berdasarkan ID
+  static Future<Map<String, dynamic>> getChatDetail(String chatId) async {
     try {
-      final userData = await UserPreferences.getUser();
-      if (userData == null) {
-        return [];
+      final token = await UserPreferences.getToken();
+      if (token == null) {
+        throw Exception('Token tidak ditemukan');
       }
-
+      
       final response = await http.get(
-        Server.urlLaravel('chat/messages/$pesananUuid'),
+        Server.urlLaravel('mobile/chat/messages?chat_uuid=$chatId'),
         headers: {
           'Accept': 'application/json',
-          'Authorization': 'Bearer ${userData['access_token']}',
+          'Authorization': token,
         },
       );
-
+      
+      debugPrint('Get chat detail status: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['success'] == true && data['messages'] != null) {
-          final List<dynamic> messages = data['messages'];
-          return messages.map((msg) => ChatMessage.fromJson(msg)).toList();
-        }
+        return data;
+      } else if (response.statusCode == 401) {
+        // Token tidak valid, hapus token
+        await UserPreferences.clearToken();
+        throw Exception('Sesi telah berakhir, silahkan login kembali');
+      } else {
+        throw Exception('Gagal mengambil detail chat: ${response.body}');
       }
-
-      return [];
     } catch (e) {
-      print('Error getting chat messages: $e');
-      return [];
+      debugPrint('Error getting chat detail: $e');
+      rethrow;
     }
   }
-
-  // Mengirim pesan chat
-  static Future<bool> sendMessage(String pesananUuid, String message) async {
+  
+  // Mengirim pesan
+  static Future<Map<String, dynamic>> sendMessage(String chatId, String message) async {
     try {
-      final userData = await UserPreferences.getUser();
-      if (userData == null) {
-        return false;
+      final token = await UserPreferences.getToken();
+      if (token == null) {
+        throw Exception('Token tidak ditemukan');
       }
-
+      
       final response = await http.post(
-        Server.urlLaravel('chat/send'),
+        Server.urlLaravel('mobile/chat/send'),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${userData['access_token']}',
+          'Authorization': token,
         },
         body: jsonEncode({
-          'pesanan_uuid': pesananUuid,
+          'chat_uuid': chatId,
           'message': message,
+          'message_type': 'text',
         }),
       );
-
+      
+      debugPrint('Send message status: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['success'] == true;
+        return data;
+      } else if (response.statusCode == 401) {
+        // Token tidak valid, hapus token
+        await UserPreferences.clearToken();
+        throw Exception('Sesi telah berakhir, silahkan login kembali');
+      } else {
+        throw Exception('Gagal mengirim pesan: ${response.body}');
       }
-
-      return false;
     } catch (e) {
-      print('Error sending message: $e');
-      return false;
+      debugPrint('Error sending message: $e');
+      rethrow;
     }
   }
-
-  // Menandai pesan sebagai dibaca
-  static Future<bool> markMessagesAsRead(String pesananUuid, List<String> messageIds) async {
+  
+  // Membuat chat untuk pesanan
+  static Future<Map<String, dynamic>> createChatForOrder(String pesananUuid) async {
     try {
-      final userData = await UserPreferences.getUser();
-      if (userData == null) {
-        return false;
+      final token = await UserPreferences.getToken();
+      if (token == null) {
+        throw Exception('Token tidak ditemukan');
       }
-
+      
       final response = await http.post(
-        Server.urlLaravel('chat/mark-read'),
+        Server.urlLaravel('mobile/chat/create-for-order'),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${userData['access_token']}',
+          'Authorization': token,
         },
         body: jsonEncode({
           'pesanan_uuid': pesananUuid,
-          'message_ids': messageIds,
         }),
       );
-
-      if (response.statusCode == 200) {
+      
+      debugPrint('Create chat for order status: ${response.statusCode}');
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
-        return data['status'] == 'success';
+        return data;
+      } else if (response.statusCode == 401) {
+        // Token tidak valid, hapus token
+        await UserPreferences.clearToken();
+        throw Exception('Sesi telah berakhir, silahkan login kembali');
+      } else {
+        throw Exception('Gagal membuat chat: ${response.body}');
       }
-
-      return false;
     } catch (e) {
-      print('Error marking messages as read: $e');
-      return false;
+      debugPrint('Error creating chat for order: $e');
+      rethrow;
     }
   }
-
-  // Mendapatkan detail produk untuk ditampilkan di chat
-  static Future<ProductChat?> getProductDetails(String jasaId) async {
+  
+  // Menandai pesan sebagai sudah dibaca
+  static Future<Map<String, dynamic>> markMessagesAsRead(String chatId) async {
     try {
-      final response = await http.get(
-        Server.urlLaravel('jasa/$jasaId'),
-        headers: {'Accept': 'application/json'},
+      final token = await UserPreferences.getToken();
+      if (token == null) {
+        throw Exception('Token tidak ditemukan');
+      }
+      
+      final response = await http.post(
+        Server.urlLaravel('mobile/chat/mark-read'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': token,
+        },
+        body: jsonEncode({
+          'chat_uuid': chatId,
+        }),
       );
-
+      
+      debugPrint('Mark messages as read status: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['status'] == 'success' && data['data'] != null) {
-          return ProductChat.fromJson(data['data']['jasa']);
-        }
+        return data;
+      } else if (response.statusCode == 401) {
+        // Token tidak valid, hapus token
+        await UserPreferences.clearToken();
+        throw Exception('Sesi telah berakhir, silahkan login kembali');
+      } else {
+        throw Exception('Gagal menandai pesan sebagai sudah dibaca: ${response.body}');
       }
-
-      return null;
     } catch (e) {
-      print('Error getting product details: $e');
-      return null;
+      debugPrint('Error marking messages as read: $e');
+      rethrow;
+    }
+  }
+  
+  // Mengambil pesan berdasarkan ID pesanan
+  static Future<Map<String, dynamic>> getMessagesByPesanan(String pesananUuid) async {
+    try {
+      final token = await UserPreferences.getToken();
+      if (token == null) {
+        throw Exception('Token tidak ditemukan');
+      }
+      
+      final response = await http.get(
+        Server.urlLaravel('mobile/chat/messages-by-pesanan/$pesananUuid'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': token,
+        },
+      );
+      
+      debugPrint('Get messages by pesanan status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data;
+      } else if (response.statusCode == 401) {
+        // Token tidak valid, hapus token
+        await UserPreferences.clearToken();
+        throw Exception('Sesi telah berakhir, silahkan login kembali');
+      } else {
+        throw Exception('Gagal mengambil pesan: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error getting messages by pesanan: $e');
+      rethrow;
     }
   }
 } 

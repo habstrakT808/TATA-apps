@@ -5,6 +5,7 @@ class CustomColors {
   static Color threertyColor = const Color.fromRGBO(52, 127, 77, 1);
   static Color secondaryColor = const Color.fromRGBO(255, 202, 57, 1);
   static Color primaryColor = const Color.fromRGBO(52, 127, 77, 1);
+  static Color accentColor = const Color.fromRGBO(255, 128, 0, 1);
   static Color greensoft = const Color.fromRGBO(52, 127, 77, 1);
   static Color greensoft2 = const Color.fromRGBO(210, 255, 218, 1);
   static Color hintprimary = const Color.fromRGBO(230, 230, 254, 1);

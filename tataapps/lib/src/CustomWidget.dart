@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:TATA/src/CustomColors.dart';
 import 'package:TATA/src/CustomText.dart';
 import 'package:TATA/helper/fcm_helper.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/painting.dart';
+import 'package:flutter/widgets.dart';
 
 class CustomWidget {
   static InkWell KolomP7encarian(OnTap) {
@@ -224,81 +227,6 @@ class CustomWidget {
             builder: (context) => nextPage))); // Navigate after dismissal
   }
 
-  // static void NotifBerhasilEditInformasi(
-  //     BuildContext context, Widget nextPage) {
-  //   showDialog(
-  //     context: context,
-
-  //     barrierDismissible: false, // Prevent dismissal by tapping outside
-  //     builder: (context) => Stack(
-  //       children: <Widget>[
-  //         // Transparent background with a slight dimming effect
-  //         ModalBarrier(color: Colors.black.withOpacity(0.3)),
-  //         Center(
-  //           child: Container(
-  //             width: 300.0, // Adjust width as needed
-  //             height: 200.0, // Adjust height as needed
-  //             decoration: BoxDecoration(
-  //               color: CustomColors.secondaryColor,
-  //               borderRadius: BorderRadius.circular(15.0),
-  //             ),
-  //             child: Column(
-  //               mainAxisAlignment: MainAxisAlignment.center,
-  //               children: <Widget>[
-  //                 // Animated checkmark
-  //                 ScaleTransition(
-  //                   scale: Tween<double>(begin: 0.0, end: 1.0).animate(
-  //                     CurvedAnimation(
-  //                       parent: AlwaysStoppedAnimation(1),
-  //                       curve: Curves.easeInOut,
-  //                     ),
-  //                   ),
-  //                   child: Icon(
-  //                     Icons.check,
-  //                     size: 60.0,
-  //                     color: CustomColors.whiteColor,
-  //                   ),
-  //                 ),
-  //                 SizedBox(height: 20.0),
-  //                 // Login success text
-  //                 Text(
-  //                   "Berhasil Mengubah Informasi!",
-  //                   style: CustomText.TextArvoBold(20, CustomColors.whiteColor),
-  //                   textAlign: TextAlign.center,
-  //                 ),
-  //                 SizedBox(height: 20.0),
-  //                 // "OK" button with navigation
-  //                 // ElevatedButton(
-  //                 //   onPressed: () => , // Dismiss dialog
-  //                 //   child: Text(
-  //                 //     "Ok",
-  //                 //     style: TextStyle(
-  //                 //       color: Colors.white,
-  //                 //       fontSize: 16.0,
-  //                 //     ),
-  //                 //   ),
-  //                 //   style: CustomButton.DefaultButton(CustomColors.primaryColor)
-  //                 // ),
-  //               ],
-  //             ),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   ).then((_) => Navigator.pushReplacement(
-  //       context,
-  //       PageRouteBuilder(
-  //           pageBuilder: (context, animation, secondaryAnimation) =>
-  //               InformasiToko(),
-  //           transitionsBuilder:
-  //               (context, animation, secondaryAnimation, child) {
-  //             return FadeTransition(
-  //               opacity: animation,
-  //               child: child,
-  //             );
-  //           })));
-  // }
-
   static void NotifGagalEditInformasi(BuildContext context) {
     showDialog(
       context: context,
@@ -361,153 +289,6 @@ class CustomWidget {
       ),
     );
   }
-
-  // static void NotifBerhasilEditProfil(BuildContext context) {
-  //   showDialog(
-  //     context: context,
-
-  //     barrierDismissible: false, // Prevent dismissal by tapping outside
-  //     builder: (context) => Stack(
-  //       children: <Widget>[
-  //         // Transparent background with a slight dimming effect
-  //         ModalBarrier(color: Colors.black.withOpacity(0.3)),
-  //         Center(
-  //           child: Container(
-  //             width: 300.0, // Adjust width as needed
-  //             height: 200.0, // Adjust height as needed
-  //             decoration: BoxDecoration(
-  //               color: CustomColors.secondaryColor,
-  //               borderRadius: BorderRadius.circular(15.0),
-  //             ),
-  //             child: Column(
-  //               mainAxisAlignment: MainAxisAlignment.center,
-  //               children: <Widget>[
-  //                 // Animated checkmark
-  //                 ScaleTransition(
-  //                   scale: Tween<double>(begin: 0.0, end: 1.0).animate(
-  //                     CurvedAnimation(
-  //                       parent: AlwaysStoppedAnimation(1),
-  //                       curve: Curves.easeInOut,
-  //                     ),
-  //                   ),
-  //                   child: Icon(
-  //                     Icons.check,
-  //                     size: 60.0,
-  //                     color: CustomColors.whiteColor,
-  //                   ),
-  //                 ),
-  //                 SizedBox(height: 20.0),
-  //                 // Login success text
-  //                 Text(
-  //                   "Berhasil Mengubah Profil!",
-  //                   style: CustomText.TextArvoBold(20, CustomColors.whiteColor),
-  //                   textAlign: TextAlign.center,
-  //                 ),
-  //                 SizedBox(height: 20.0),
-  //                 // "OK" button with navigation
-  //                 // ElevatedButton(
-  //                 //   onPressed: () => , // Dismiss dialog
-  //                 //   child: Text(
-  //                 //     "Ok",
-  //                 //     style: TextStyle(
-  //                 //       color: Colors.white,
-  //                 //       fontSize: 16.0,
-  //                 //     ),
-  //                 //   ),
-  //                 //   style: CustomButton.DefaultButton(CustomColors.primaryColor)
-  //                 // ),
-  //               ],
-  //             ),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   ).then((_) => Navigator.pushReplacement(
-  //       context,
-  //       PageRouteBuilder(
-  //           pageBuilder: (context, animation, secondaryAnimation) => utama(),
-  //           transitionsBuilder:
-  //               (context, animation, secondaryAnimation, child) {
-  //             return FadeTransition(
-  //               opacity: animation,
-  //               child: child,
-  //             );
-  //           })));
-  // }
-
-  // static void NotifBerhasilTambahAdmin(BuildContext context) {
-  //   showDialog(
-  //     context: context,
-
-  //     barrierDismissible: false, // Prevent dismissal by tapping outside
-  //     builder: (context) => Stack(
-  //       children: <Widget>[
-  //         // Transparent background with a slight dimming effect
-  //         ModalBarrier(color: Colors.black.withOpacity(0.3)),
-  //         Center(
-  //           child: Container(
-  //             width: 300.0, // Adjust width as needed
-  //             height: 200.0, // Adjust height as needed
-  //             decoration: BoxDecoration(
-  //               color: CustomColors.secondaryColor,
-  //               borderRadius: BorderRadius.circular(15.0),
-  //             ),
-  //             child: Column(
-  //               mainAxisAlignment: MainAxisAlignment.center,
-  //               children: <Widget>[
-  //                 // Animated checkmark
-  //                 ScaleTransition(
-  //                   scale: Tween<double>(begin: 0.0, end: 1.0).animate(
-  //                     CurvedAnimation(
-  //                       parent: AlwaysStoppedAnimation(1),
-  //                       curve: Curves.easeInOut,
-  //                     ),
-  //                   ),
-  //                   child: Icon(
-  //                     Icons.check,
-  //                     size: 60.0,
-  //                     color: CustomColors.whiteColor,
-  //                   ),
-  //                 ),
-  //                 SizedBox(height: 20.0),
-  //                 // Login success text
-  //                 Text(
-  //                   "Admin Berhasil Terdaftar!",
-  //                   style: CustomText.TextArvoBold(18, CustomColors.whiteColor),
-  //                   textAlign: TextAlign.center,
-  //                 ),
-  //                 SizedBox(height: 20.0),
-  //                 // "OK" button with navigation
-  //                 // ElevatedButton(
-  //                 //   onPressed: () => , // Dismiss dialog
-  //                 //   child: Text(
-  //                 //     "Ok",
-  //                 //     style: TextStyle(
-  //                 //       color: Colors.white,
-  //                 //       fontSize: 16.0,
-  //                 //     ),
-  //                 //   ),
-  //                 //   style: CustomButton.DefaultButton(CustomColors.primaryColor)
-  //                 // ),
-  //               ],
-  //             ),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   ).then((_) => Navigator.pushReplacement(
-  //       context,
-  //       PageRouteBuilder(
-  //           pageBuilder: (context, animation, secondaryAnimation) =>
-  //               KelolaPengguna(),
-  //           transitionsBuilder:
-  //               (context, animation, secondaryAnimation, child) {
-  //             return FadeTransition(
-  //               opacity: animation,
-  //               child: child,
-  //             );
-  //           })));
-  // }
 
   static void NotifBerhasilEditPassword(BuildContext context) {
     showDialog(
@@ -1074,11 +855,10 @@ class CustomWidget {
     );
   }
 
-  static void NotifGagalText(
-      BuildContext context, String text, double sizeText) {
+  static void NotifBerhasilText(
+      BuildContext context, String text, Widget nextPage) {
     showDialog(
       context: context,
-
       barrierDismissible: false, // Prevent dismissal by tapping outside
       builder: (context) => Stack(
         children: <Widget>[
@@ -1089,7 +869,7 @@ class CustomWidget {
               width: 300.0, // Adjust width as needed
               height: 200.0, // Adjust height as needed
               decoration: BoxDecoration(
-                color: CustomColors.redColor,
+                color: CustomColors.secondaryColor,
                 borderRadius: BorderRadius.circular(15.0),
               ),
               child: Column(
@@ -1104,17 +884,16 @@ class CustomWidget {
                       ),
                     ),
                     child: Icon(
-                      Icons.text_snippet_outlined,
+                      Icons.check,
                       size: 60.0,
                       color: CustomColors.whiteColor,
                     ),
                   ),
                   const SizedBox(height: 20.0),
-                  // Login success text
+                  // Success text
                   Text(
                     text,
-                    style: CustomText.TextArvoBold(
-                        sizeText, CustomColors.whiteColor),
+                    style: CustomText.TextArvoBold(16, CustomColors.whiteColor),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 20.0),
@@ -1124,7 +903,17 @@ class CustomWidget {
           ),
         ],
       ),
-    );
+    ).then((_) => Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => nextPage,
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+              return FadeTransition(
+                opacity: animation,
+                child: child,
+              );
+            })));
   }
 
   static void NotifLoading(BuildContext context) {

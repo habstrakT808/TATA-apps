@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:TATA/helper/user_preferences.dart';
+import 'package:TATA/helper/auth_helper.dart';
 import 'package:TATA/models/ReviewModels.dart';
 import 'package:TATA/menu/DetailReview/DetailReview.dart' as dr;
 import 'package:TATA/menu/JasaDesign/JasaDesignLogo.dart';
@@ -23,15 +24,58 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String namaUser = "...";
   String imageProfil = "";
+  final AuthHelper _authHelper = AuthHelper();
 
   void loadUserData() async {
-    final userData = await UserPreferences.getUser();
-    if (userData != null) {
-      print("User dari SharedPreferences: \\${userData['user']['name']}");
-      print("foto dari SharedPreferences: \\${userData['user']['foto']}");
+    try {
+      final userData = await UserPreferences.getUser();
+      if (userData != null) {
+        print("ALLDATAA : $userData");
+        
+        // Perbaiki akses data dengan null safety yang lebih baik
+        String? userName;
+        String? userPhoto;
+        
+        // Cek struktur data yang berbeda
+        if (userData.containsKey('data') && 
+            userData['data'] != null && 
+            userData['data'].containsKey('user') && 
+            userData['data']['user'] != null) {
+          // Struktur: data.user.name
+          userName = userData['data']['user']['name']?.toString();
+          userPhoto = userData['data']['user']['foto']?.toString();
+          print("User dari SharedPreferences (data.user): $userName");
+          print("foto dari SharedPreferences (data.user): $userPhoto");
+        } else if (userData.containsKey('user') && userData['user'] != null) {
+          // Struktur: user.name
+          userName = userData['user']['name']?.toString();
+          userPhoto = userData['user']['foto']?.toString();
+          print("User dari SharedPreferences (user): $userName");
+          print("foto dari SharedPreferences (user): $userPhoto");
+        } else {
+          // Fallback - cari di level root
+          userName = userData['name']?.toString() ?? userData['nama_user']?.toString();
+          userPhoto = userData['foto']?.toString();
+          print("User dari SharedPreferences (root): $userName");
+          print("foto dari SharedPreferences (root): $userPhoto");
+        }
+        
+        setState(() {
+          namaUser = userName ?? "Pengguna";
+          imageProfil = userPhoto ?? '';
+        });
+      } else {
+        print("User data is null");
+        setState(() {
+          namaUser = "Pengguna";
+          imageProfil = '';
+        });
+      }
+    } catch (e) {
+      print("Error loading user data: $e");
       setState(() {
-        imageProfil = userData['user']['foto'] ?? '';
-        namaUser = userData['user']['name'] ?? '';
+        namaUser = "Pengguna";
+        imageProfil = '';
       });
     }
   }
@@ -39,18 +83,20 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    setState(() {
-      loadUserData();
-      fetchReviews();
-    });
+    loadUserData();
+    fetchReviews();
   }
 
   Future<List<Review>> fetchReviews() async {
     try {
-      print('FETCHING REVIEWS FROM: ${Server.urlLaravel('users/review')}');
-      final response = await http.get(
-        Server.urlLaravel('users/review'),
-        headers: {'Accept': 'application/json'}
+      // Perbaiki endpoint URL
+      final url = Server.urlLaravel('mobile/users/review');
+      print('FETCHING REVIEWS FROM: $url');
+      
+      // Gunakan AuthHelper untuk request yang memerlukan autentikasi
+      final response = await _authHelper.authenticatedRequest(
+        'mobile/users/review',
+        method: 'GET',
       ).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
@@ -60,19 +106,42 @@ class _HomePageState extends State<HomePage> {
       );
       
       print('RESPONSE STATUS: ${response.statusCode}');
-      print('RESPONSE BODY: ${response.body}');
       
       if (response.statusCode == 200) {
-        final List data = json.decode(response.body);
-        return data.map((json) => Review.fromJson(json)).toList();
+        final responseBody = response.body;
+        print('RESPONSE BODY: $responseBody');
+        
+        final decodedData = json.decode(responseBody);
+        
+        // Handle different response structures
+        List<dynamic> reviewsData;
+        if (decodedData is Map<String, dynamic>) {
+          if (decodedData.containsKey('data')) {
+            reviewsData = decodedData['data'] as List<dynamic>;
+          } else if (decodedData.containsKey('reviews')) {
+            reviewsData = decodedData['reviews'] as List<dynamic>;
+          } else {
+            reviewsData = [];
+          }
+        } else if (decodedData is List) {
+          reviewsData = decodedData;
+        } else {
+          reviewsData = [];
+        }
+        
+        return reviewsData.map((json) => Review.fromJson(json)).toList();
+      } else if (response.statusCode == 404) {
+        print('ERROR: Review endpoint not found (404)');
+        return [];
+      } else if (response.statusCode == 401) {
+        print('ERROR: Unauthorized access to reviews');
+        return [];
       } else {
         print('ERROR: Failed to load reviews with status ${response.statusCode}');
-        // Return empty list instead of throwing
         return [];
       }
     } catch (e) {
       print('ERROR fetchReviews: $e');
-      // Return empty list instead of throwing
       return [];
     }
   }
@@ -174,12 +243,11 @@ class _HomePageState extends State<HomePage> {
                       radius: screenWidth < 360 ? 25 : 30, // smaller for small screens
                       backgroundImage: imageProfil.isNotEmpty
                           ? NetworkImage(
-                              scale: 1,
                               Server.UrlImageProfil(imageProfil),
                             )
                           : AssetImage(
                               Server.UrlGambar('logoapk.png'),
-                            ),
+                            ) as ImageProvider,
                     ),
                   ),
                 ),

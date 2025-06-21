@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:TATA/helper/user_preferences.dart';
+import 'package:TATA/helper/auth_helper.dart';
 import 'package:TATA/menu/JasaDesign/DeskripsiPesanan/PembayaranSection/BuktiPemesanan/BuktiPemesanan.dart';
 import 'package:TATA/sendApi/Server.dart';
 import 'package:TATA/src/CustomColors.dart';
@@ -65,64 +66,104 @@ class _MandiriPaymentPageState extends State<MandiriPaymentPage> {
   }
 
   Future<void> kirimPesanan() async {
-    final uri = Server.urlLaravel('pesanan/create-with-transaction');
-    final request = http.MultipartRequest('POST', uri);
-    final data = await UserPreferences.getUser();
-
-    request.headers['Authorization'] = 'Bearer ${data!['access_token']}';
-    request.headers['Accept'] = 'application/json';
-
-    // 🔁 Step 1: Mapping jenisPesanan ke ID Jasa
-    String jasaId = widget.id_jasa;
-    
-    // 🔁 Step 2: Mapping kombinasi jasaId + paket → id_paket_jasa (1–9)
-    String paketId = widget.id_paket_jasa;
-    String revisiClean = widget.revisi.replaceAll('x', '');
-
-    // 🔁 Step 3: Kirim field ke backend
-    request.fields['id_jasa'] = jasaId;
-    request.fields['id_paket_jasa'] = paketId;
-    request.fields['catatan_user'] = widget.deskripsi;
-    request.fields['maksimal_revisi'] = int.parse(revisiClean).toString();
-    request.fields['id_metode_pembayaran'] =
-        "e79fcffe-c7dd-4ac1-ac4b-4ef4faef5d37";
-
-    // 🔁 Step 4: Upload gambar (jika ada)
-    if (kIsWeb && widget.webImageBytes != null) {
-      // Untuk web, gunakan bytes langsung
-      final image = http.MultipartFile.fromBytes(
-        'gambar_referensi',
-        widget.webImageBytes!,
-        filename: 'web_image.jpg',
-        contentType: MediaType('image', 'jpeg'),
-      );
-      request.files.add(image);
-    } else if (!kIsWeb && widget.imageFile != null && widget.imageFile!.existsSync()) {
-      // Untuk mobile
-      final image = await http.MultipartFile.fromPath(
-        'gambar_referensi',
-        widget.imageFile!.path,
-        contentType: MediaType(
-          'image',
-          'jpeg',
-        ),
-      );
-      request.files.add(image);
-    }
-
     try {
+      // Gunakan AuthHelper untuk verifikasi dan refresh token
+      final authHelper = AuthHelper();
+      final isAuthenticated = await authHelper.isAuthenticated();
+      
+      if (!isAuthenticated) {
+        print("User tidak terautentikasi, mengarahkan ke halaman login");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sesi telah berakhir. Silahkan login kembali.')),
+        );
+        // Arahkan ke halaman login
+        Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+        return;
+      }
+      
+      // Siapkan data untuk request
+      final uri = Server.urlLaravel('mobile/pesanan/create-with-transaction');
+      final request = http.MultipartRequest('POST', uri);
+      
+      // Dapatkan token yang valid
+      final token = await UserPreferences.getToken();
+      print("Token yang digunakan: $token");
+      
+      request.headers['Authorization'] = token!;
+      request.headers['Accept'] = 'application/json';
+  
+      // 🔁 Step 1: Mapping jenisPesanan ke ID Jasa
+      String jasaId = widget.id_jasa;
+      
+      // 🔁 Step 2: Mapping kombinasi jasaId + paket → id_paket_jasa (1–9)
+      String paketId = widget.id_paket_jasa;
+      String revisiClean = widget.revisi.replaceAll('x', '');
+  
+      // 🔁 Step 3: Kirim field ke backend
+      request.fields['id_jasa'] = jasaId;
+      request.fields['id_paket_jasa'] = paketId;
+      request.fields['catatan_user'] = widget.deskripsi;
+      request.fields['maksimal_revisi'] = int.parse(revisiClean).toString();
+      request.fields['id_metode_pembayaran'] =
+          "e79fcffe-c7dd-4ac1-ac4b-4ef4faef5d37";
+  
+      // 🔁 Step 4: Upload gambar (jika ada)
+      if (kIsWeb && widget.webImageBytes != null) {
+        // Untuk web, gunakan bytes langsung
+        final image = http.MultipartFile.fromBytes(
+          'gambar_referensi',
+          widget.webImageBytes!,
+          filename: 'web_image.jpg',
+          contentType: MediaType('image', 'jpeg'),
+        );
+        request.files.add(image);
+      } else if (widget.imageFile != null) {
+        // Untuk mobile
+        final image = await http.MultipartFile.fromPath(
+          'gambar_referensi',
+          widget.imageFile!.path,
+          contentType: MediaType(
+            'image',
+            'jpeg',
+          ),
+        );
+        request.files.add(image);
+      }
+  
       final response = await request.send();
       final resString = await response.stream.bytesToString();
       final resJson = jsonDecode(resString);
-
-      if (response.statusCode == 201) {
+      
+      print("Response status: ${response.statusCode}");
+      print("Response body: $resString");
+  
+      if (response.statusCode == 201 || response.statusCode == 200) {
         print("Pesanan berhasil: ${resJson['data']['id_pesanan']}");
-
+        
+        // Tambahkan flag create_chat=true untuk membuat chat room otomatis
+        final String pesananId = resJson['data']['id_pesanan'];
+        
+        // Gunakan AuthHelper untuk request pembuatan chat
+        final chatResponse = await authHelper.authenticatedRequest(
+          'mobile/chat/create-for-order',
+          method: 'POST',
+          body: jsonEncode({
+            'pesanan_uuid': pesananId,
+          }),
+        );
+        
+        if (chatResponse.statusCode == 200 || chatResponse.statusCode == 201) {
+          final chatData = jsonDecode(chatResponse.body);
+          print("Chat room ${chatData['status'] == 'success' ? 'berhasil dibuat' : 'gagal dibuat'}: ${chatData['message']}");
+        } else {
+          print("Gagal membuat chat room: ${chatResponse.statusCode}");
+        }
+  
         Navigator.push(
           context,
           SmoothPageTransition(
             page: BuktiPemesananPage(
-              nomorPemesanan: nomorPemesanan,
+              nomorPemesanan: pesananId,
               id_jasa: widget.id_jasa,
               id_paket_jasa: widget.id_paket_jasa,
               jenisPesanan: widget.jenisPesanan,
@@ -141,6 +182,23 @@ class _MandiriPaymentPageState extends State<MandiriPaymentPage> {
             ),
           ),
         );
+      } else if (response.statusCode == 401) {
+        // Token tidak valid, coba refresh token
+        print("Token tidak valid, mencoba refresh token...");
+        final refreshed = await authHelper.isAuthenticated();
+        
+        if (refreshed) {
+          // Coba kirim pesanan lagi
+          print("Token berhasil di-refresh, mencoba kirim pesanan lagi...");
+          await kirimPesanan();
+        } else {
+          print("Gagal refresh token, mengarahkan ke halaman login...");
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Anda perlu login kembali')),
+          );
+          // Arahkan ke halaman login
+          Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+        }
       } else {
         print("Gagal membuat pesanan: ${resJson['message']}");
         ScaffoldMessenger.of(context).showSnackBar(

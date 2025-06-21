@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:TATA/helper/fcm_helper.dart';
+import 'package:TATA/helper/user_preferences.dart';
 import 'package:TATA/models/ChatModel.dart';
 import 'package:TATA/sendApi/ChatService.dart';
 import 'package:TATA/sendApi/Server.dart';
@@ -31,80 +32,125 @@ class OrderChatPage extends StatefulWidget {
 class _OrderChatPageState extends State<OrderChatPage> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  bool _canSendMessage = false;
 
-  List<ChatMessage> messages = [];
+  List<MessageModel> messages = [];
   bool isLoading = true;
-  ProductChat? currentProduct;
+  String? chatId;
+  bool isAdmin = false;
+  String? userRole;
 
   @override
   void initState() {
     super.initState();
-    _initializeProduct();
-    _loadChat();
+    _checkUserRole();
+    _scrollController.addListener(_onScroll);
+    _controller.addListener(() {
+      setState(() {
+        _canSendMessage = _controller.text.trim().isNotEmpty;
+      });
+    });
+    
+    // Pastikan pengguna sudah login dan token ada sebelum mengambil data
+    UserPreferences.getToken().then((token) {
+      if (token != null) {
+        _getOrCreateChatForOrder();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Anda perlu login terlebih dahulu')),
+        );
+        Navigator.pushReplacementNamed(context, '/login');
+      }
+    });
     
     // Subscribe to FCM updates
     FCMHelper().chatMessageStream.listen(_handleIncomingFCMMessage);
   }
-
-  void _initializeProduct() {
-    // Jika data produk diberikan, langsung buat instance ProductChat
-    if (widget.jasaId != null && widget.jasaTitle != null) {
-      currentProduct = ProductChat(
-        id: widget.jasaId!,
-        title: widget.jasaTitle!,
-        category: widget.jasaCategory ?? 'Jasa',
-        price: widget.price ?? '0',
-        imageUrl: '',
-        packageType: widget.packageType ?? 'basic',
-      );
-    } else {
-      // Jika tidak, coba ambil dari server
-      _fetchProductDetails();
-    }
-  }
-
-  Future<void> _fetchProductDetails() async {
+  
+  Future<void> _checkUserRole() async {
     try {
-      // Coba dapatkan detail jasa dari server
-      final product = await ChatApiService.getProductDetails(widget.pesananUuid);
-      if (product != null) {
+      final userData = await UserPreferences.getUser();
+      if (userData != null && userData['user'] != null && userData['user']['role'] != null) {
         setState(() {
-          currentProduct = product;
+          userRole = userData['user']['role'];
+          isAdmin = ['admin', 'admin_chat', 'super_admin'].contains(userRole);
         });
       }
     } catch (e) {
-      print('Error getting product details: $e');
+      debugPrint('Error checking user role: $e');
+    }
+  }
+
+  Future<void> _getOrCreateChatForOrder() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      // Dapatkan atau buat chat untuk pesanan ini
+      final result = await ChatService.createChatForOrder(widget.pesananUuid);
+      
+      if (result != null && result['status'] == 'success' && result['data'] != null) {
+        setState(() {
+          chatId = result['data']['uuid'];
+        });
+        
+        // Sekarang ambil pesan-pesan
+        _loadChat();
+      } else {
+        setState(() {
+          isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal membuat chat untuk pesanan ini')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+      // Tampilkan pesan template jika gagal memuat chat
+      _loadTemplateMessage();
     }
   }
 
   Future<void> _loadChat() async {
+    if (chatId == null) {
+      _getOrCreateChatForOrder();
+      return;
+    }
+    
     setState(() {
       isLoading = true;
     });
 
     try {
       // Ambil pesan-pesan chat
-      final chatMessages = await ChatApiService.getChatMessages(widget.pesananUuid);
+      final result = await ChatService.getChatDetail(chatId!);
       
-      setState(() {
-        messages = chatMessages;
-        isLoading = false;
-      });
+      if (result != null && result['status'] == 'success' && result['data'] != null) {
+        final List<dynamic> chatMessages = result['data']['messages'] ?? [];
+        
+        setState(() {
+          messages = chatMessages.map((msg) => MessageModel.fromJson(msg)).toList();
+          isLoading = false;
+        });
 
-      // Scroll ke bawah setelah memuat pesan
-      _scrollToBottom();
+        // Scroll ke bawah setelah memuat pesan
+        _scrollToBottom();
 
-      // Mark messages as read
-      final unreadMessages = chatMessages
-          .where((msg) => !msg.isRead && msg.sender == 'admin')
-          .map((msg) => msg.id)
-          .toList();
-          
-      if (unreadMessages.isNotEmpty) {
-        await ChatApiService.markMessagesAsRead(widget.pesananUuid, unreadMessages);
+        // Mark messages as read
+        await ChatService.markMessagesAsRead(chatId!);
+      } else {
+        setState(() {
+          isLoading = false;
+        });
       }
     } catch (e) {
-      print("Error loading chat: $e");
+      debugPrint("Error loading chat: $e");
       setState(() {
         isLoading = false;
       });
@@ -116,11 +162,12 @@ class _OrderChatPageState extends State<OrderChatPage> {
   void _loadTemplateMessage() {
     if (messages.isEmpty) {
       setState(() {
-        messages.add(ChatMessage(
+        messages.add(MessageModel(
           id: '1',
-          text: "Selamat! Pesanan Anda telah diterima. Admin akan segera menghubungi Anda untuk informasi lebih lanjut.",
-          sender: 'admin',
-          timestamp: DateTime.now().toIso8601String(),
+          chatId: chatId ?? '',
+          content: "Selamat! Pesanan Anda telah diterima. Admin akan segera menghubungi Anda untuk informasi lebih lanjut.",
+          senderType: 'admin',
+          createdAt: DateTime.now(),
           isRead: true,
         ));
       });
@@ -129,12 +176,13 @@ class _OrderChatPageState extends State<OrderChatPage> {
 
   void _handleIncomingFCMMessage(Map<String, dynamic> messageData) {
     // Handle incoming FCM message
-    if (messageData['pesanan_uuid'] == widget.pesananUuid) {
-      final newMessage = ChatMessage(
+    if (messageData['chat_id'] == chatId) {
+      final newMessage = MessageModel(
         id: messageData['message_id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        text: messageData['body'] ?? '',
-        sender: 'admin',
-        timestamp: DateTime.now().toIso8601String(),
+        chatId: chatId ?? '',
+        content: messageData['body'] ?? '',
+        senderType: 'admin',
+        createdAt: DateTime.now(),
         isRead: false,
       );
       
@@ -159,14 +207,16 @@ class _OrderChatPageState extends State<OrderChatPage> {
   }
 
   Future<void> sendMessage(String text) async {
-    if (text.trim().isEmpty) return;
+    if (text.trim().isEmpty || chatId == null) return;
 
     _controller.clear();
-    final newMessage = ChatMessage(
+    final newMessage = MessageModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      text: text,
-      sender: 'user',
-      timestamp: DateTime.now().toIso8601String(),
+      chatId: chatId!,
+      content: text,
+      senderType: 'user',
+      createdAt: DateTime.now(),
+      isRead: false,
     );
     
     setState(() {
@@ -177,17 +227,16 @@ class _OrderChatPageState extends State<OrderChatPage> {
     _scrollToBottom();
 
     // Kirim pesan ke server
-    final success = await ChatApiService.sendMessage(widget.pesananUuid, text);
-    if (!success) {
+    try {
+      await ChatService.sendMessage(chatId!, text);
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Gagal mengirim pesan, coba lagi nanti")),
+        SnackBar(content: Text("Gagal mengirim pesan: $e")),
       );
     }
   }
 
   Widget buildProductCard() {
-    if (currentProduct == null) return SizedBox();
-    
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       padding: const EdgeInsets.all(12),
@@ -199,8 +248,7 @@ class _OrderChatPageState extends State<OrderChatPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Kamu bertanya tentang produk ini",
-              style: TextStyle(fontSize: 12, color: Colors.grey)),
+          Text("Pesanan", style: TextStyle(fontSize: 12, color: Colors.grey)),
           SizedBox(height: 8),
           Row(
             children: [
@@ -210,9 +258,9 @@ class _OrderChatPageState extends State<OrderChatPage> {
                   width: 60,
                   height: 60,
                   color: Colors.grey.shade300,
-                  child: currentProduct!.category == 'logo' 
+                  child: widget.jasaCategory == 'logo' 
                       ? Icon(Icons.design_services, color: Colors.grey.shade800, size: 30)
-                      : currentProduct!.category == 'banner'
+                      : widget.jasaCategory == 'banner'
                           ? Icon(Icons.image, color: Colors.grey.shade800, size: 30)
                           : Icon(Icons.work, color: Colors.grey.shade800, size: 30),
                 ),
@@ -222,13 +270,12 @@ class _OrderChatPageState extends State<OrderChatPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${currentProduct!.title}',
+                    Text(widget.jasaTitle ?? 'Pesanan',
                         style: TextStyle(fontWeight: FontWeight.bold)),
-                    Text(currentProduct!.packageType,
+                    Text(widget.packageType ?? '-',
                         style: TextStyle(fontSize: 12, color: Colors.grey)),
-                    Text('Rp${currentProduct!.price}',
-                        style:
-                            TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text(widget.price ?? '-',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -239,17 +286,11 @@ class _OrderChatPageState extends State<OrderChatPage> {
     );
   }
 
-  Widget buildMessageBubble(ChatMessage message) {
-    bool isUser = message.sender == 'user';
+  Widget buildMessageBubble(MessageModel message) {
+    bool isUser = message.senderType == 'user';
     
     // Format timestamp
-    String formattedTime;
-    try {
-      final dateTime = DateTime.parse(message.timestamp);
-      formattedTime = DateFormat('HH:mm').format(dateTime);
-    } catch (e) {
-      formattedTime = '';
-    }
+    String formattedTime = DateFormat('HH:mm').format(message.createdAt);
     
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -266,7 +307,7 @@ class _OrderChatPageState extends State<OrderChatPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              message.text,
+              message.content,
               style: TextStyle(color: isUser ? Colors.white : Colors.black87),
             ),
             SizedBox(height: 2),
@@ -284,6 +325,11 @@ class _OrderChatPageState extends State<OrderChatPage> {
         ),
       ),
     );
+  }
+
+  void _onScroll() {
+    // Implementasi dasar untuk mencegah error
+    // Bisa digunakan untuk implementasi load more messages jika diperlukan
   }
 
   @override
@@ -320,8 +366,9 @@ class _OrderChatPageState extends State<OrderChatPage> {
           ),
           Column(
             children: [
-              // Product card
-              if (currentProduct != null) buildProductCard(),
+              // Product card if data is available
+              if (widget.jasaId != null && widget.jasaTitle != null) 
+                buildProductCard(),
               
               // Chat messages
               Expanded(
@@ -379,7 +426,7 @@ class _OrderChatPageState extends State<OrderChatPage> {
                       backgroundColor: Colors.green,
                       child: IconButton(
                         icon: const Icon(Icons.send, color: Colors.white),
-                        onPressed: () => sendMessage(_controller.text),
+                        onPressed: _canSendMessage ? () => sendMessage(_controller.text) : null,
                       ),
                     ),
                   ],

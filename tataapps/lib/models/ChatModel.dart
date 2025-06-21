@@ -19,12 +19,12 @@ class ChatMessage {
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
     return ChatMessage(
-      id: json['id'] ?? '',
-      text: json['message'] ?? json['text'] ?? '',
+      id: json['id'] ?? json['uuid'] ?? '',
+      text: json['message'] ?? json['text'] ?? json['content'] ?? '',
       sender: json['sender_type'] ?? json['sender'] ?? '',
       timestamp: json['created_at'] ?? json['timestamp'] ?? DateTime.now().toIso8601String(),
       isRead: json['is_read'] ?? json['read'] ?? false,
-      imageUrl: json['image_url'],
+      imageUrl: json['image_url'] ?? json['file_url'],
     );
   }
 
@@ -101,7 +101,7 @@ class ChatRoom {
 
   factory ChatRoom.fromJson(Map<String, dynamic> json) {
     return ChatRoom(
-      id: json['id'] ?? '',
+      id: json['id'] ?? json['uuid'] ?? '',
       pesananId: json['pesanan_uuid'] ?? json['pesanan_id'] ?? '',
       product: ProductChat.fromJson(json['product'] ?? {}),
       lastMessage: json['last_message'] ?? '',
@@ -140,10 +140,35 @@ class ChatModel {
       userId: data['user_id'] ?? '',
       adminId: data['admin_id'] ?? '',
       orderReference: data['order_reference'],
-      createdAt: (data['created_at'] as Timestamp).toDate(),
-      updatedAt: (data['updated_at'] as Timestamp).toDate(),
+      createdAt: (data['created_at'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (data['updated_at'] as Timestamp?)?.toDate() ?? DateTime.now(),
       lastMessage: data['last_message'] ?? '',
       unreadCount: data['unread_count'] ?? 0,
+    );
+  }
+
+  factory ChatModel.fromJson(Map<String, dynamic> json) {
+    DateTime parseDateTime(dynamic value) {
+      if (value == null) return DateTime.now();
+      if (value is String) {
+        try {
+          return DateTime.parse(value);
+        } catch (e) {
+          return DateTime.now();
+        }
+      }
+      return DateTime.now();
+    }
+
+    return ChatModel(
+      id: json['uuid'] ?? json['id'] ?? '',
+      userId: json['user_id'] ?? '',
+      adminId: json['admin_id'] ?? '',
+      orderReference: json['pesanan_uuid'] ?? json['order_reference'],
+      createdAt: parseDateTime(json['created_at']),
+      updatedAt: parseDateTime(json['updated_at']),
+      lastMessage: json['last_message'] ?? '',
+      unreadCount: json['unread_count'] ?? 0,
     );
   }
   
@@ -167,6 +192,8 @@ class MessageModel {
   final String senderType; // 'user' or 'admin'
   final bool isRead;
   final DateTime createdAt;
+  final String? fileUrl;
+  final String? messageType;
   
   MessageModel({
     required this.id,
@@ -175,6 +202,8 @@ class MessageModel {
     required this.senderType,
     this.isRead = false,
     required this.createdAt,
+    this.fileUrl,
+    this.messageType = 'text',
   });
   
   factory MessageModel.fromFirestore(DocumentSnapshot doc) {
@@ -185,7 +214,34 @@ class MessageModel {
       content: data['content'] ?? '',
       senderType: data['sender_type'] ?? 'user',
       isRead: data['is_read'] ?? false,
-      createdAt: (data['created_at'] as Timestamp).toDate(),
+      createdAt: (data['created_at'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      fileUrl: data['file_url'],
+      messageType: data['message_type'] ?? 'text',
+    );
+  }
+
+  factory MessageModel.fromJson(Map<String, dynamic> json) {
+    DateTime parseDateTime(dynamic value) {
+      if (value == null) return DateTime.now();
+      if (value is String) {
+        try {
+          return DateTime.parse(value);
+        } catch (e) {
+          return DateTime.now();
+        }
+      }
+      return DateTime.now();
+    }
+
+    return MessageModel(
+      id: json['uuid'] ?? json['id'] ?? '',
+      chatId: json['chat_uuid'] ?? json['chat_id'] ?? '',
+      content: json['message'] ?? json['content'] ?? '',
+      senderType: json['sender_type'] ?? 'user',
+      isRead: json['is_read'] ?? false,
+      createdAt: parseDateTime(json['created_at']),
+      fileUrl: json['file_url'],
+      messageType: json['message_type'] ?? 'text',
     );
   }
   
@@ -196,6 +252,8 @@ class MessageModel {
       'sender_type': senderType,
       'is_read': isRead,
       'created_at': Timestamp.fromDate(createdAt),
+      'file_url': fileUrl,
+      'message_type': messageType,
     };
   }
 } 

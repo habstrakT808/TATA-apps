@@ -257,13 +257,13 @@ class _BuktiPemesananPageState extends State<BuktiPemesananPage> {
 
   final List<String> _tatacara = [
     "Setelah melakukan pembayaran, tekan tombol Verifikasi di halaman pembayaran.",
-    "Anda akan diarahkan ke Chat Admin.",
-    "Bukti Pemesanan akan otomatis terlampir sebagai konteks pesan ke Admin.",
-    "Kirimkan pesan tambahan di chat, contoh: \"Admin, saya sudah melakukan pembayaran dan transfer ke nomor rekening terkait.\" dan lampirkan bukti transfer berupa tangkapan layar.",
+    "Anda telah diarahkan ke halaman Bukti Pemesanan ini.",
+    "Silahkan tekan tombol 'Chat Admin' di bawah untuk menghubungi admin dan konfirmasi pembayaran Anda.",
+    "Kirimkan pesan di chat, contoh: \"Admin, saya sudah melakukan pembayaran dan transfer ke nomor rekening terkait.\" dan lampirkan bukti transfer berupa tangkapan layar.",
     "Tunggu admin melakukan pengecekan pembayaran Anda.",
-    "Cek kembali status pemesanan Anda di menu Pemesanan.",
-    "Jika status berubah menjadi Diproses, berarti pembayaran sudah diverifikasi.",
-    "Jika ingin menyimpan bukti pembayaran secara pribadi, tekan tombol Cetak untuk menyimpan bukti pembayaran ke galeri Anda.",
+    "Admin akan mengubah status pemesanan menjadi 'Diproses' jika pembayaran telah diverifikasi.",
+    "Anda dapat memeriksa status pemesanan Anda di menu 'Pemesanan'.",
+    "Jika ingin menyimpan bukti pemesanan secara pribadi, silahkan screenshot halaman ini.",
   ];
 }
 

@@ -27,68 +27,65 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Future<void> _loadUserId() async {
     try {
       final userData = await UserPreferences.getUser();
-      if (userData != null) {
-        setState(() {
-          _userId = userData['user']['id'].toString();
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _userId = userData?['user']['id'];
+        _isLoading = false;
+      });
     } catch (e) {
-      print('Error loading user data: $e');
+      print('Error loading user ID: $e');
       setState(() {
         _isLoading = false;
       });
     }
   }
   
-  String _formatDate(DateTime date) {
-    final today = DateTime.now();
-    
-    if (date.year == today.year && date.month == today.month && date.day == today.day) {
-      return DateFormat('HH:mm').format(date);
-    } else if (date.year == today.year) {
-      return DateFormat('dd MMM').format(date);
-    } else {
-      return DateFormat('dd/MM/yy').format(date);
+  String _formatTimestamp(String timestamp) {
+    try {
+      final dateTime = DateTime.parse(timestamp).toLocal();
+      final now = DateTime.now();
+      final difference = now.difference(dateTime);
+
+      if (difference.inDays == 0) {
+        return DateFormat.Hm().format(dateTime); // Today, show only time
+      } else if (difference.inDays == 1) {
+        return 'Kemarin';
+      } else if (difference.inDays < 7) {
+        return DateFormat.EEEE().format(dateTime); // Show day of week
+      } else {
+        return DateFormat('dd/MM/yyyy').format(dateTime); // Show full date
+      }
+    } catch (e) {
+      return '';
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Pesan'),
-          backgroundColor: CustomColors.primaryColor,
-        ),
-        body: const Center(child: CircularProgressIndicator()),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
     
     if (_userId == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Pesan'),
-          backgroundColor: CustomColors.primaryColor,
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Anda perlu login untuk melihat pesan'),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {
-                  // Navigate to login screen
-                },
-                child: const Text('Login'),
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'Anda harus login untuk mengakses chat',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                // Navigate to login page
+                Navigator.of(context).pushNamed('/login');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: CustomColors.primaryColor,
               ),
-            ],
-          ),
+              child: const Text('Login'),
+            ),
+          ],
         ),
       );
     }
@@ -99,10 +96,34 @@ class _ChatListScreenState extends State<ChatListScreen> {
         backgroundColor: CustomColors.primaryColor,
       ),
       body: StreamBuilder<List<ChatModel>>(
-        stream: _chatService.getChatsForUser(_userId!),
+        stream: _chatService.getChatRooms(_userId!),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
+          
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Error loading chats',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {});
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: CustomColors.primaryColor,
+                    ),
+                    child: const Text('Coba Lagi'),
+                  ),
+                ],
+              ),
+            );
           }
           
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -110,28 +131,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset(
-                    'assets/images/empty_chat.png',
-                    width: 120,
-                    height: 120,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) => 
-                      Icon(Icons.chat_bubble_outline, size: 80, color: Colors.grey[300]),
+                  Icon(
+                    Icons.chat_bubble_outline,
+                    size: 64,
+                    color: Colors.grey[400],
                   ),
                   const SizedBox(height: 16),
-                  Text(
-                    'Belum ada percakapan',
+                  const Text(
+                    'Anda belum memiliki chat',
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Mulai percakapan dari halaman detail pesanan',
-                    style: TextStyle(
-                      fontSize: 14,
                       color: Colors.grey,
                     ),
                   ),
@@ -140,92 +149,89 @@ class _ChatListScreenState extends State<ChatListScreen> {
             );
           }
           
-          final chats = snapshot.data!;
+          final chatRooms = snapshot.data!;
           
           return ListView.builder(
-            itemCount: chats.length,
+            itemCount: chatRooms.length,
             itemBuilder: (context, index) {
-              final chat = chats[index];
-              final hasUnread = chat.unreadCount > 0;
+              final chat = chatRooms[index];
               
               return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, 
-                    vertical: 8,
-                  ),
+                  contentPadding: const EdgeInsets.all(8),
                   leading: CircleAvatar(
                     backgroundColor: CustomColors.primaryColor,
-                    child: const Icon(Icons.support_agent, color: Colors.white),
+                    child: const Icon(
+                      Icons.support_agent,
+                      color: Colors.white,
+                    ),
                   ),
                   title: Row(
                     children: [
-                      Expanded(
-                        child: Text(
-                          'Admin TATA',
-                          style: TextStyle(
-                            fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
-                          ),
-                        ),
+                      const Text(
+                        'Admin TATA',
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
+                      const Spacer(),
                       Text(
-                        _formatDate(chat.updatedAt),
-                        style: TextStyle(
+                        _formatTimestamp(chat.updatedAt.toIso8601String()),
+                        style: const TextStyle(
                           fontSize: 12,
-                          color: Colors.grey[600],
+                          color: Colors.grey,
                         ),
                       ),
                     ],
                   ),
-                  subtitle: Row(
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: chat.orderReference != null && chat.orderReference!.isNotEmpty
-                          ? Text(
-                              chat.lastMessage.isNotEmpty 
-                                ? chat.lastMessage
-                                : 'Pesanan #${chat.orderReference}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
-                              ),
-                            )
-                          : Text(
-                              chat.lastMessage.isNotEmpty
-                                ? chat.lastMessage
-                                : 'Mulai percakapan',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                      ),
-                      if (hasUnread)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: CustomColors.primaryColor,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                      if (chat.orderReference != null && chat.orderReference!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, bottom: 4),
                           child: Text(
-                            chat.unreadCount.toString(),
-                            style: const TextStyle(
+                            'Pesanan #${chat.orderReference}',
+                            style: TextStyle(
                               fontSize: 12,
-                              color: Colors.white,
+                              color: CustomColors.secondaryColor,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              chat.lastMessage,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (chat.unreadCount > 0)
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: CustomColors.accentColor,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                chat.unreadCount.toString(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                   onTap: () {
-                    Navigator.push(
-                      context,
+                    Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => ChatDetailScreen(chatId: chat.id),
+                        builder: (context) => ChatDetailScreen(chatId: chat.id),
                       ),
                     );
                   },
@@ -234,6 +240,37 @@ class _ChatListScreenState extends State<ChatListScreen> {
             },
           );
         },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          // Create a new general chat
+          try {
+            final userData = await UserPreferences.getUser();
+            final userId = userData?['user']['id'];
+            
+            if (userId != null) {
+              // Create a general chat without order reference
+              final chatId = await _chatService.createChatRoom(
+                userId, 
+                'admin_default'
+              );
+              
+              if (mounted) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => ChatDetailScreen(chatId: chatId),
+                  ),
+                );
+              }
+            }
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error creating chat: $e')),
+            );
+          }
+        },
+        backgroundColor: CustomColors.primaryColor,
+        child: const Icon(Icons.chat),
       ),
     );
   }

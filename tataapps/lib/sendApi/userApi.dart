@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:TATA/SendApi/Server.dart';
 import 'package:TATA/SendApi/tokenJWT.dart';
+import 'package:TATA/helper/user_preferences.dart';
 import 'package:http/http.dart' as http;
 
 class UserApi {
@@ -61,7 +62,7 @@ class UserApi {
   static Future<String?> checkEmailAvailability(String email) async {
     try {
       final response = await http.post(
-        Server.urlLaravel("users/check-email"),
+        Server.urlLaravel("mobile/users/check-email"),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email}),
       );
@@ -119,106 +120,149 @@ class UserApi {
     String password,
     String passwordConfirm,
   ) async {
-    final response = await http.post(
-      Server.urlLaravel("users/register"),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: json.encode({
-        "email": email,
-        "no_telpon": noTelpon,
-        "nama_user": nama,
-        "password": password,
-        "password_confirmation": passwordConfirm,
-      }),
-    );
+    try {
+      print('Registering user: $email');
+      final response = await http.post(
+        Server.urlLaravel("mobile/users/register"),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: json.encode({
+          "email": email,
+          "no_telpon": noTelpon,
+          "nama_user": nama,
+          "password": password,
+          "password_confirmation": passwordConfirm,
+        }),
+      );
 
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else if (response.statusCode == 400) {
-      final result = json.decode(response.body);
-      return result;
-    } else if (response.statusCode == 500) {
-      final result = json.decode(response.body);
-      return result;
-    } else {
-      print("Error Kode ${response.statusCode}");
-      return null;
+      print('Register status code: ${response.statusCode}');
+      print('Register response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else if (response.statusCode == 400) {
+        final result = json.decode(response.body);
+        return result;
+      } else if (response.statusCode == 500) {
+        final result = json.decode(response.body);
+        return result;
+      } else {
+        print("Error Kode ${response.statusCode}");
+        return {'status': 'error', 'message': 'Server error: ${response.statusCode}'};
+      }
+    } catch (e) {
+      print('Exception during registration: $e');
+      return {'status': 'error', 'message': 'Connection error: $e'};
     }
   }
 
   static Future<Map<String, dynamic>?> login(
       String email, String password) async {
-    final response = await http.post(
-      Server.urlLaravel("users/login"),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: json.encode({
-        "email": email,
-        "password": password,
-      }),
-    );
+    try {
+      print('Login attempt for: $email');
+      final response = await http.post(
+        Server.urlLaravel("mobile/users/login"),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: json.encode({
+          "email": email,
+          "password": password,
+        }),
+      );
+      
+      print('Login status code: ${response.statusCode}');
+      print('Login response: ${response.body}');
 
-    if (response.statusCode == 200) {
-      final result = json.decode(response.body);
-      final jwtToken = result['data']; // ini token e
-      await TokenJwt.saveToken(jwtToken);
-
-      final decodedPayload = _parseJwt(jwtToken);
-      return decodedPayload;
-    } else if (response.statusCode == 400) {
-      final result = json.decode(response.body);
-      return result;
-    } else {
-      return null;
+      if (response.statusCode == 200) {
+        final result = json.decode(response.body);
+        print('Login success, saving user data: ${result['data']}');
+        
+        // Simpan data user lengkap (termasuk token) di UserPreferences
+        await UserPreferences.saveUser(result['data']);
+        
+        // Pastikan email juga disimpan di TokenJWT
+        String email = result['data']['user']['email'];
+        await TokenJwt.saveEmail(email);
+        
+        print('User data saved to preferences');
+        return result['data'];
+      } else if (response.statusCode == 400) {
+        final result = json.decode(response.body);
+        return result;
+      } else {
+        print('Login failed with status: ${response.statusCode}');
+        return {'status': 'error', 'message': 'Login failed with status: ${response.statusCode}'};
+      }
+    } catch (e) {
+      print('Exception during login: $e');
+      return {'status': 'error', 'message': 'Connection error: $e'};
     }
   }
 
   static Future<Map<String, dynamic>?> CekEmail(String email) async {
-    final response = await http.post(
-      Server.urlLaravel("users/CekEmail"),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: json.encode({"email": email}),
-    );
+    try {
+      print('URL request: ${Server.urlLaravel("mobile/users/check-email")}');
+      
+      final response = await http.post(
+        Server.urlLaravel("mobile/users/check-email"),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: json.encode({"email": email}),
+      );
 
-    if (response.statusCode == 200) {
-      print(response.body.toString());
-      final result = json.decode(response.body);
-      return result;
-    } else if (response.statusCode == 400) {
-      final result = json.decode(response.body);
-      return result;
-    } else {
-      return null;
+      print('Status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        final result = json.decode(response.body);
+        return result;
+      } else if (response.statusCode == 400) {
+        final result = json.decode(response.body);
+        return result;
+      } else {
+        return {'status': 'error', 'message': 'Server error: ${response.statusCode}'};
+      }
+    } catch (e) {
+      print('Exception during CekEmail: $e');
+      return {'status': 'error', 'message': 'Connection error: $e'};
     }
   }
 
   static Future<Map<String, dynamic>?> loginGoogle(String email) async {
-    final response = await http.post(
-      Server.urlLaravel("users/login-google"),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: json.encode({
-        "email": email,
-      }),
-    );
+    try {
+      print('Login with Google for: $email');
+      final response = await http.post(
+        Server.urlLaravel("mobile/users/login-google"),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: json.encode({
+          "email": email,
+        }),
+      );
 
-    if (response.statusCode == 200) {
-      final result = json.decode(response.body);
-      final jwtToken = result['data'];
-      await TokenJwt.saveToken(jwtToken);
+      print('Google login status code: ${response.statusCode}');
+      print('Google login response: ${response.body}');
 
-      final decodedPayload = _parseJwt(jwtToken);
-      return decodedPayload;
-    } else if (response.statusCode == 400) {
-      final result = json.decode(response.body);
-      return result;
-    } else {
-      return null;
+      if (response.statusCode == 200) {
+        final result = json.decode(response.body);
+        final jwtToken = result['data'];
+        await TokenJwt.saveToken(jwtToken);
+
+        final decodedPayload = _parseJwt(jwtToken);
+        return decodedPayload;
+      } else if (response.statusCode == 400) {
+        final result = json.decode(response.body);
+        return result;
+      } else {
+        return {'status': 'error', 'message': 'Server error: ${response.statusCode}'};
+      }
+    } catch (e) {
+      print('Exception during Google login: $e');
+      return {'status': 'error', 'message': 'Connection error: $e'};
     }
   }
 

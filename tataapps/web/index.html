@@ -26,6 +26,12 @@
     <meta name="apple-mobile-web-app-title" content="tataapps" />
     <link rel="apple-touch-icon" href="icons/Icon-192.png" />
 
+    <!-- Google Sign In Client ID -->
+    <meta
+      name="google-signin-client_id"
+      content="244660030535-lodn72p8i6c0e8ufni92k9lorfqsrffc.apps.googleusercontent.com"
+    />
+
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="favicon.png" />
 
@@ -43,15 +49,42 @@
         apiKey: "AIzaSyCpgEcZuvQW70JHFbJ2mBHlM_hf8DsPWvQ",
         authDomain: "printing-commerce.firebaseapp.com",
         projectId: "printing-commerce",
-        storageBucket: "printing-commerce.appspot.com",
+        storageBucket: "printing-commerce.firebasestorage.app",
         messagingSenderId: "244660030535",
-        appId: "1:244660030535:web:ee21e126b63aa82c843562",
-        measurementId: "G-MEASUREMENT_ID",
+        appId: "1:244660030535:web:3340b70f50c4fbd9843562",
         databaseURL: "https://printing-commerce-default-rtdb.firebaseio.com",
       };
 
       // Initialize Firebase
       const app = firebase.initializeApp(firebaseConfig);
+
+      // Initialize Firebase Cloud Messaging
+      const messaging = firebase.messaging();
+
+      // Request permission and get token in development mode
+      if (window.location.hostname === "localhost") {
+        console.log("Running in development mode - skipping FCM setup");
+      } else {
+        try {
+          messaging
+            .getToken({
+              vapidKey:
+                "BJ7Nle1g-lfmypL4jngAW-8cDnnyq9JO2HtID_WVviL-lf8HRCQ8leegxkhKqQgLpZ3xa5vZnLoeHB_O4KKg1TI",
+            })
+            .then((token) => {
+              if (token) {
+                console.log("FCM Token:", token);
+              } else {
+                console.log("No FCM token available");
+              }
+            })
+            .catch((err) => {
+              console.log("Error getting FCM token:", err);
+            });
+        } catch (e) {
+          console.log("Error initializing FCM:", e);
+        }
+      }
     </script>
 
     <!-- This script adds the flutter initialization JS code -->

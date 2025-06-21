@@ -11,69 +11,109 @@ import 'package:TATA/src/pageTransition.dart';
 import 'package:flutter/material.dart';
 import 'package:TATA/src/CustomColors.dart';
 import 'package:flutter/services.dart';
+import 'package:TATA/services/AuthService.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:TATA/BeforeLogin/page_login.dart';
 
-class Lupapassword1 extends StatefulWidget {
-  const Lupapassword1({super.key});
+class LupaPassword1 extends StatefulWidget {
+  const LupaPassword1({super.key});
 
   @override
-  _Lupapassword1State createState() => _Lupapassword1State();
+  _LupaPassword1State createState() => _LupaPassword1State();
 }
 
-class _Lupapassword1State extends State<Lupapassword1> {
-  final TextEditingController _emailController = TextEditingController();
-  final String _emailError = '';
-  Future<void> _CekEmail() async {
+class _LupaPassword1State extends State<LupaPassword1> {
+  final AuthService _authService = AuthService();
+  TextEditingController emailController = TextEditingController();
+  bool isLoading = false;
+  String errorText = '';
+  
+  Future<void> _resetPassword() async {
+    setState(() {
+      isLoading = true;
+      errorText = '';
+    });
+    
+    if (emailController.text.isEmpty) {
+      setState(() {
+        isLoading = false;
+        errorText = 'Email tidak boleh kosong';
+      });
+      return;
+    }
+    
     try {
-      final result = await UserApi.CekEmail(_emailController.text);
-      if (result != null) {
-        if (result['status'] == "error") {
-          print("Result : $result");
-          print("Result : ${_emailController.text}");
-          Navigator.push(
-            context,
-            SmoothPageTransition(
-              page: LupaPassword2(email: _emailController.text),
-            ),
-          );
-        } else if (result['status'] == "success") {
-          print("Resultt : $result");
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Email Belum Terdaftar')),
-          );
-        } else {
-          print("Resulttt : $result");
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content:
-                    Text('Pendaftaran gagal: ada kesalahan pengiriman data')),
-          );
-        }
-      } else {
-        print("gagal : $result");
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content:
-                  Text('Pendaftaran gagal: ada kesalahan pengiriman data')),
+      // Kirim email reset password menggunakan Firebase Auth
+      await _authService.resetPassword(emailController.text);
+      
+      // Berhasil mengirim email reset password
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+        
+        // Tampilkan dialog sukses
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('Email Terkirim'),
+              content: const Text(
+                'Link untuk reset password telah dikirim ke email Anda. '
+                'Silakan cek email Anda dan ikuti instruksi untuk reset password.'
+              ),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text('OK'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    // Kembali ke halaman login
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(builder: (context) => const page_login()),
+                    );
+                  },
+                ),
+              ],
+            );
+          },
         );
       }
-      setState(() {});
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        isLoading = false;
+        
+        switch (e.code) {
+          case 'user-not-found':
+            errorText = 'Email tidak terdaftar';
+            break;
+          case 'invalid-email':
+            errorText = 'Format email tidak valid';
+            break;
+          default:
+            errorText = 'Gagal mengirim email reset password: ${e.message}';
+        }
+      });
     } catch (e) {
-      print(e);
+      setState(() {
+        isLoading = false;
+        errorText = 'Terjadi kesalahan: $e';
+      });
     }
   }
 
   void _validateInputs() async {
     setState(() {
-      if (_emailController.text.isEmpty) {
+      if (emailController.text.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Email tidak boleh kosong')),
         );
-      } else if (_emailController.text.length <= 10) {
+      } else if (emailController.text.length <= 10) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Email tidak valid')),
         );
       } else {
-        _CekEmail();
+        _resetPassword();
       }
     });
   }
@@ -147,7 +187,7 @@ class _Lupapassword1State extends State<Lupapassword1> {
                                     FilteringTextInputFormatter.allow(
                                         RegExp(r'[0-9@.a-zA-Z]')),
                                   ],
-                                  controller: _emailController,
+                                  controller: emailController,
                                   keyboardType: TextInputType.emailAddress,
                                   textAlign: TextAlign.start,
                                   textInputAction: TextInputAction.next,

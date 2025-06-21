@@ -266,7 +266,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       
       try {
         // Dapatkan atau buat chat untuk pesanan ini
-        final chatId = await _chatService.getOrCreateChatForOrder(userId, orderId);
+        final chatId = await _chatService.getOrCreateChatForOrder(orderId);
         
         setState(() {
           _isCreatingChat = false;
@@ -346,39 +346,24 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                     onPressed: () async {
                       Navigator.of(context).pop();
                       
-                      // Test izin Firestore lagi
+                      // Coba kembali membuka chat
                       setState(() {
                         _isCreatingChat = true;
                       });
                       
                       try {
-                        final hasPermission = await _chatService.testFirestorePermission();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Mencoba membuka chat kembali...'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
                         
-                        setState(() {
-                          _isCreatingChat = false;
+                        // Coba kembali membuka chat setelah 1 detik
+                        Future.delayed(Duration(seconds: 1), () {
+                          _openChatWithAdmin();
                         });
-                        
-                        if (hasPermission) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Izin diberikan! Silakan coba lagi.'),
-                              backgroundColor: Colors.green,
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                          
-                          // Coba kembali membuka chat setelah 1 detik
-                          Future.delayed(Duration(seconds: 1), () {
-                            _openChatWithAdmin();
-                          });
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Masih belum ada izin. Pastikan Anda telah mengatur Firestore Rules.'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
                       } catch (e) {
                         setState(() {
                           _isCreatingChat = false;
@@ -397,12 +382,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                     onPressed: () {
                       Navigator.of(context).pop();
                       
-                      // Aktifkan fallback API
-                      _chatService.setUseFallback(true);
-                      
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Menggunakan mode fallback API. Mencoba kembali...'),
+                          content: Text('Mencoba menggunakan mode alternatif...'),
                           backgroundColor: Colors.orange,
                           duration: Duration(seconds: 2),
                         ),
@@ -413,7 +395,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                         _openChatWithAdmin();
                       });
                     },
-                    child: Text('Gunakan API Fallback', style: TextStyle(color: Colors.orange)),
+                    child: Text('Gunakan Mode Alternatif', style: TextStyle(color: Colors.orange)),
                   ),
                 ],
               );

@@ -3,15 +3,18 @@ import 'package:TATA/BeforeLogin/register2Pages.dart';
 import 'package:TATA/SendApi/userApi.dart';
 import 'package:TATA/models/RegisterModels.dart';
 import 'package:TATA/sendApi/Server.dart';
+import 'package:TATA/services/AuthService.dart';
 import 'package:TATA/src/CustomColors.dart';
 import 'package:TATA/src/CustomText.dart';
 import 'package:TATA/src/CustomWidget.dart';
 import 'package:TATA/src/pageTransition.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:TATA/src/autofilltext.dart';
 import 'package:TATA/src/customConfirmDialog.dart';
+import 'package:TATA/helper/user_preferences.dart';
 
 class Register extends StatefulWidget {
   const Register({super.key});
@@ -21,6 +24,7 @@ class Register extends StatefulWidget {
 }
 
 class _RegisterState extends State<Register> {
+  final AuthService _authService = AuthService();
   String? _selectedGender;
   String _passwordBaruError = '';
   String _konfirmasiPasswordError = '';
@@ -152,19 +156,51 @@ class _RegisterState extends State<Register> {
         cancelText: 'Tidak',
       );
       if (confirm) {
+        // Simpan nomor telepon ke UserPreferences
+        await UserPreferences.savePhoneNumber(_noHpController.text);
         _CekEmail();
       }
     } else {
       if (_namaError.isNotEmpty) {
-        CustomWidget.NotifGagalText(context, _namaError, 14);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_namaError),
+            backgroundColor: CustomColors.redColor,
+            duration: Duration(seconds: 3),
+          ),
+        );
       } else if (_emailError.isNotEmpty) {
-        CustomWidget.NotifGagalText(context, _emailError, 14);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_emailError),
+            backgroundColor: CustomColors.redColor,
+            duration: Duration(seconds: 3),
+          ),
+        );
       } else if (_noHpError.isNotEmpty) {
-        CustomWidget.NotifGagalText(context, _noHpError, 14);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_noHpError),
+            backgroundColor: CustomColors.redColor,
+            duration: Duration(seconds: 3),
+          ),
+        );
       } else if (_passwordBaruError.isNotEmpty) {
-        CustomWidget.NotifGagalText(context, _passwordBaruError, 14);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_passwordBaruError),
+            backgroundColor: CustomColors.redColor,
+            duration: Duration(seconds: 3),
+          ),
+        );
       } else if (_konfirmasiPasswordError.isNotEmpty) {
-        CustomWidget.NotifGagalText(context, _konfirmasiPasswordError, 14);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_konfirmasiPasswordError),
+            backgroundColor: CustomColors.redColor,
+            duration: Duration(seconds: 3),
+          ),
+        );
       } else {
         CustomWidget.NotifGagal(context);
       }
@@ -181,46 +217,79 @@ class _RegisterState extends State<Register> {
 
   Future<void> _CekEmail() async {
     try {
-      final result = await UserApi.CekEmail(_emailController.text);
-      if (result != null) {
-        if (result['status'] == "success") {
-          print("Result : $result");
-          final registerDATA = RegisterData(
-            namaUser: _namaController.text,
-            email: _emailController.text,
-            noHp: _noHpController.text,
-            pasword: _passwordController.text,
-          );
-          Navigator.push(
-            context,
-            SmoothPageTransition(
-              page: Register2(registerData: registerDATA),
-            ),
-          );
-        } else if (result['status'] == "error") {
-          print("Resultt : $result");
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Pendaftaran gagal: ${result['message']}')),
-          );
-        } else {
-          print("Resulttt : $result");
+      CustomWidget.NotifLoading(context);
+      
+      // Cek apakah email sudah terdaftar di Firebase
+      try {
+        final methods = await FirebaseAuth.instance.fetchSignInMethodsForEmail(_emailController.text);
+        
+        if (methods.isNotEmpty) {
+          // Email sudah terdaftar
+          Navigator.pop(context); // Tutup dialog loading
+          setState(() {
+            _emailError = 'Email sudah terdaftar';
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-                content:
-                    Text('Pendaftaran gagal: ada kesalahan pengiriman data')),
+              content: Text(_emailError),
+              backgroundColor: CustomColors.redColor,
+              duration: Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+        
+        // Email belum terdaftar, lanjutkan ke halaman berikutnya
+        Navigator.pop(context); // Tutup dialog loading
+        
+        final registerDATA = RegisterData(
+          namaUser: _namaController.text,
+          email: _emailController.text,
+          noHp: _noHpController.text,
+          pasword: _passwordController.text,
+        );
+        
+        Navigator.push(
+          context,
+          SmoothPageTransition(
+            page: Register2(registerData: registerDATA),
+          ),
+        );
+      } on FirebaseAuthException catch (e) {
+        Navigator.pop(context); // Tutup dialog loading
+        if (e.code == 'invalid-email') {
+          setState(() {
+            _emailError = 'Format email tidak valid';
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_emailError),
+              backgroundColor: CustomColors.redColor,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Terjadi kesalahan: ${e.message}"),
+              backgroundColor: CustomColors.redColor,
+              duration: Duration(seconds: 3),
+            ),
           );
         }
-      } else {
-        print("gagal : $result");
+      } catch (e) {
+        Navigator.pop(context); // Tutup dialog loading
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content:
-                  Text('Pendaftaran gagal: ada kesalahan pengiriman data')),
+            content: Text("Terjadi kesalahan: $e"),
+            backgroundColor: CustomColors.redColor,
+            duration: Duration(seconds: 3),
+          ),
         );
       }
-      setState(() {});
     } catch (e) {
-      print(e);
+      Navigator.pop(context); // Tutup dialog loading
+      CustomWidget.NotifGagal(context);
     }
   }
 
