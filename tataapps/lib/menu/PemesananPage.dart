@@ -29,27 +29,50 @@ class _PemesananPageState extends State<PemesananPage>
   }
 
   Future<void> fetchData() async {
-    final uri = Server.urlLaravel('pesanan');
-    final token = (await UserPreferences.getUser())?['access_token'] ?? '';
+    try {
+      final token = await UserPreferences.getToken();
+      if (token == null) {
+        print('Token tidak ditemukan');
+        setState(() {
+          isLoading = false;
+        });
+        return;
+      }
+      
+      final uri = Server.urlLaravel('pesanan');
+      
+      print('Using token for request: $token');
+      print('Request headers: ${{'Authorization': token, 'Content-Type': 'application/json', 'Accept': 'application/json'}}');
+      print('Making request to: $uri');
+      
+      final response = await http.get(
+        uri,
+        headers: {
+          'Authorization': token,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      );
 
-    final response = await http.get(
-      uri,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Accept': 'application/json',
-      },
-    );
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        final List list = body['data'];
 
-    if (response.statusCode == 200) {
-      final body = json.decode(response.body);
-      final List list = body['data'];
-
-      setState(() {
-        dataPemesanan = list.map((e) => Pemesanan.fromJson(e)).toList();
-        isLoading = false;
-      });
-    } else {
-      print('Gagal ambil data: ${response.body}');
+        setState(() {
+          dataPemesanan = list.map((e) => Pemesanan.fromJson(e)).toList();
+          isLoading = false;
+        });
+      } else {
+        print('Gagal ambil data: ${response.body}');
+        setState(() {
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error fetching data: $e');
       setState(() {
         isLoading = false;
       });

@@ -3,16 +3,15 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Mobile\AuthController;
 use App\Http\Controllers\Mobile\UserController;
 use App\Http\Controllers\Mobile\JasaController;
 use App\Http\Controllers\Mobile\PesananController;
+use App\Http\Controllers\Mobile\MetodePembayaranController;
 use App\Http\Controllers\Mobile\TransaksiController;
 use App\Http\Controllers\Mobile\MailController;
 use App\Http\Controllers\Mobile\ReviewController;
 use App\Http\Controllers\Mobile\ChatController;
 use App\Http\Controllers\Mobile\PengerjaanController;
-use App\Http\Controllers\Mobile\MetodePembayaranController;
 use App\Http\Controllers\Services\ChatController as ServicesChatController;
 use App\Http\Controllers\Api\ChatApiController;
 
@@ -77,6 +76,9 @@ Route::middleware('auth:sanctum')->group(function () { // HAPUS debug.auth middl
             Route::post('/download', [PesananController::class, 'downloadFiles']);
             Route::post('/review/add-by-uuid', [ReviewController::class, 'addReviewByUUID']);
             Route::get('/detail/{uuid}', [PesananController::class, 'getDetail']);
+            
+            // ✅ TAMBAH ROUTE INI UNTUK ORDER INFO
+            Route::get('/order-info/{uuid}', [PesananController::class, 'getOrderInfo']);
         });
         
         // Pengerjaan routes
@@ -113,9 +115,21 @@ Route::middleware('auth:sanctum')->group(function () { // HAPUS debug.auth middl
             Route::post('/create', [ChatController::class, 'createOrGetChatRoom']);
             Route::get('/list', [ChatController::class, 'getChatList']);
             Route::get('/messages', [ChatController::class, 'getMessages']);
+            
+            // ✅ UBAH ROUTE INI - tambahkan prefix untuk membedakan
+            Route::get('/messages/order/{orderId}', [ChatController::class, 'getMessagesByOrderId']);
+            
+            Route::get('/messages/{pesanan_uuid}', [ChatController::class, 'getMessagesByPesanan']);
             Route::post('/send', [ChatController::class, 'sendMessage']);
+            Route::post('/send-by-pesanan', [ChatController::class, 'sendMessageByPesanan']);
             Route::post('/upload', [ChatController::class, 'uploadFile']);
             Route::post('/create-for-order', [ChatController::class, 'getOrCreateChatForOrder']);
+            Route::post('/mark-read', [ChatController::class, 'markMessagesAsRead']);
+            Route::post('/send-notification', [ChatController::class, 'sendNotification']);
+            Route::post('/sync-message', [ChatController::class, 'syncMessage']);
+            
+            // ✅ DEBUG ROUTE
+            Route::get('/debug-list', [ChatController::class, 'debugChatList']);
         });
     });
 });
@@ -146,13 +160,7 @@ Route::fallback(function () {
     return response()->json([
         'status' => 'error',
         'message' => 'API route not found. Please check your endpoint.',
-        'available_routes' => [
-            'POST /api/mobile/users/login',
-            'POST /api/mobile/users/register', 
-            'GET /api/mobile/user/profile',
-            'GET /api/mobile/users/review',
-            'GET /api/mobile/jasa/{id}',
-            'POST /api/mobile/pesanan/create-with-transaction',
-        ]
+        'requested_url' => request()->fullUrl(),
+        'method' => request()->method(),
     ], 404);
-}); 
+});

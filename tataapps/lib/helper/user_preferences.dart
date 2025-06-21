@@ -68,12 +68,15 @@ class UserPreferences {
     final userJson = prefs.getString(_userKey);
     if (userJson != null) {
       try {
-        return jsonDecode(userJson);
+        final decoded = jsonDecode(userJson);
+        debugPrint('UserPreferences.getUser() returning: $decoded');
+        return decoded;
       } catch (e) {
         debugPrint('Error decoding user data: $e');
         return null;
       }
     }
+    debugPrint('UserPreferences.getUser() returning null');
     return null;
   }
   

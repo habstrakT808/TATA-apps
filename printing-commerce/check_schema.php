@@ -16,4 +16,7 @@ echo "\n====== Editor Table Schema ======\n";
 $editorSchema = DB::select('DESCRIBE editor');
 foreach ($editorSchema as $column) {
     echo "Field: {$column->Field}, Type: {$column->Type}, Null: {$column->Null}, Key: {$column->Key}, Default: {$column->Default}\n";
-} 
+}
+
+$columns = DB::select('SHOW COLUMNS FROM metode_pembayaran');
+print_r($columns); 

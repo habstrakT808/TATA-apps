@@ -25,4 +25,12 @@ class Admin extends Model
     {
         return $this->belongsTo(Auth::class, 'id_auth');
     }
+    public function auth()
+    {
+        return $this->belongsTo(Auth::class, 'id_auth', 'id_auth');
+    }
+    public function chats()
+    {
+        return $this->hasMany(Chat::class, 'admin_id', 'id_admin');
+    }
 }

@@ -131,13 +131,13 @@ class UserController extends Controller
             return response()->json(['status' => 'error', 'message' => implode(', ', $errors)], 400);
         }
         
-        if(Auth::select("email")->whereRaw("BINARY email = ?",[$request->input('email')])->exists()){
+         if(Auth::select("email")->whereRaw("BINARY email = ?",[$request->input('email')])->exists()){
             return response()->json(['status'=>'error','message'=>'Email sudah digunakan'],400);
         }else{
             return response()->json(['status'=>'success','message'=>'Silahkan Lanjutkan'],200);
         }
     }
-    
+     
     // Menjaga backward compatibility dengan kode lama
     public function CekEmail(Request $request){
         return $this->checkEmail($request);

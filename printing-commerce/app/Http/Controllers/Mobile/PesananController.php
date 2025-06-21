@@ -9,6 +9,7 @@ use App\Models\Jasa;
 use App\Models\PaketJasa;
 use App\Models\CatatanPesanan;
 use App\Models\User;
+use App\Models\MetodePembayaran;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
@@ -16,7 +17,6 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use App\Models\MetodePembayaran;
 use App\Http\Controllers\Mobile\ChatController;
 
 class PesananController extends Controller
@@ -161,14 +161,22 @@ class PesananController extends Controller
 
     public function createPesananWithTransaction(Request $request){
         try {
+            // Log untuk debugging
+            Log::info('Pesanan request received', [
+                'method' => $request->method(),
+                'url' => $request->fullUrl(),
+                'data' => $request->all(),
+                'headers' => $request->headers->all()
+            ]);
+
             // Validate pesanan data
-            $validator = Validator::make($request->only('id_jasa', 'id_paket_jasa', 'catatan_user', 'gambar_referensi', 'maksimal_revisi', 'id_metode_pembayaran'), [
+            $validator = Validator::make($request->all(), [
                 'id_jasa' => 'required|exists:jasa,id_jasa',
                 'id_paket_jasa' => 'required|exists:paket_jasa,id_paket_jasa',
                 'catatan_user' => 'nullable|string|max:1000',
                 'gambar_referensi' => 'nullable|file|mimes:jpeg,png,jpg|max:5120',
                 'maksimal_revisi' => 'nullable|integer|min:0|max:5',
-                'id_metode_pembayaran' => 'required'
+                'id_metode_pembayaran' => 'required|string'
             ], [
                 'id_jasa.required' => 'Pilih jasa terlebih dahulu',
                 'id_jasa.exists' => 'Jasa tidak valid',
@@ -181,17 +189,16 @@ class PesananController extends Controller
             ]);
             
             if ($validator->fails()) {
-                $errors = [];
-                foreach($validator->errors()->toArray() as $field => $errorMessages){
-                    $errors[$field] = $errorMessages[0];
-                    break;
-                }
-                return response()->json(['status' => 'error', 'message' => implode(', ', $errors)], 400);
+                Log::error('Validation failed', ['errors' => $validator->errors()]);
+                return response()->json([
+                    'status' => 'error', 
+                    'message' => $validator->errors()->first()
+                ], 400);
             }
             
             // Check if user exists
             if (!$request->user() || !$request->user()->id_auth) {
-                Log::error('User not authenticated or id_auth is null');
+                Log::error('User not authenticated');
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Anda perlu login kembali'
@@ -213,23 +220,56 @@ class PesananController extends Controller
             $jasa = Jasa::find($request->input('id_jasa'));
             $paketJasa = PaketJasa::find($request->input('id_paket_jasa'));
             if (!$jasa || !$paketJasa) {
+                Log::error('Jasa or PaketJasa not found', [
+                    'id_jasa' => $request->input('id_jasa'),
+                    'id_paket_jasa' => $request->input('id_paket_jasa')
+                ]);
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Jasa atau paket tidak ditemukan'
                 ], 404);
             }
-            // Get metode pembayaran
-            $metodePembayaran = MetodePembayaran::where('uuid', $request->input('id_metode_pembayaran'))->first();
+
+            // Get metode pembayaran - PERBAIKI BAGIAN INI
+            $metodePembayaranUuid = $request->input('id_metode_pembayaran');
+            
+            \Log::info('Debug metode pembayaran', [
+                'id_metode_pembayaran' => $metodePembayaranUuid,
+                'all_metode' => MetodePembayaran::all()->toArray()
+            ]);
+            
+            \Log::info('Looking for metode pembayaran', [
+                'uuid' => $metodePembayaranUuid,
+                'available_methods' => MetodePembayaran::all()->pluck('id_metode_pembayaran', 'nama_metode_pembayaran')->toArray()
+            ]);
+            
+            $metodePembayaran = MetodePembayaran::where('uuid', $metodePembayaranUuid)->first();
+            
             if (!$metodePembayaran) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Metode pembayaran tidak ditemukan'
-                ], 404);
+                // Coba cari berdasarkan ID jika UUID tidak ditemukan
+                \Log::info('Metode pembayaran not found by UUID, trying by ID');
+                $metodePembayaran = MetodePembayaran::find($metodePembayaranUuid);
+                
+                // Jika masih tidak ditemukan, ambil metode pembayaran pertama (temporary fix)
+                if (!$metodePembayaran) {
+                    \Log::info('Metode pembayaran not found by ID, using first available method');
+                    $metodePembayaran = MetodePembayaran::first();
+                    
+                    if (!$metodePembayaran) {
+                        \Log::error('No metode pembayaran available in database');
+                        return response()->json([
+                            'status' => 'error',
+                            'message' => 'Tidak ada metode pembayaran tersedia'
+                        ], 404);
+                    }
+                }
             }
+
             // Calculate total price and estimation
             $estimasiWaktu = Carbon::now();
             $jumlahRevisi = $request->input('maksimal_revisi') ?? $paketJasa->maksimal_revisi;
             $uuid = Str::uuid();
+
             // Begin transaction
             DB::beginTransaction();
             try {
@@ -442,6 +482,108 @@ class PesananController extends Controller
                 'status' => 'error',
                 'message' => 'Gagal membatalkan pesanan',
                 'data' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get order info for chat - simplified version
+     */
+    public function getOrderInfo(Request $request, $uuid)
+    {
+        try {
+            // Check if user exists
+            if (!$request->user() || !$request->user()->id_auth) {
+                Log::error('User not authenticated or id_auth is null');
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Anda perlu login kembali'
+                ], 401);
+            }
+            
+            // Get user ID safely
+            $user = User::where('id_auth', $request->user()->id_auth)->first();
+            if (!$user) {
+                Log::error('User not found for auth ID: ' . $request->user()->id_auth);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak ditemukan, silakan login kembali'
+                ], 404);
+            }
+            $userId = $user->id_user;
+            
+            // Strategy untuk mencari pesanan (sama seperti di ChatController)
+            $pesanan = null;
+            
+            // 1. Coba langsung sebagai UUID pesanan
+            $pesanan = Pesanan::where('uuid', $uuid)
+                ->where('id_user', $userId)
+                ->with(['toJasa', 'toPaketJasa', 'fromTransaksi.toMetodePembayaran'])
+                ->first();
+            
+            // 2. Jika tidak ketemu, coba cari di transaksi
+            if (!$pesanan) {
+                $transaksi = Transaksi::where('order_id', $uuid)->first();
+                if ($transaksi) {
+                    $pesanan = Pesanan::where('uuid', $transaksi->pesanan_uuid)
+                        ->where('id_user', $userId)
+                        ->with(['toJasa', 'toPaketJasa', 'fromTransaksi.toMetodePembayaran'])
+                        ->first();
+                }
+            }
+            
+            // 3. Jika masih tidak ketemu, coba partial match
+            if (!$pesanan) {
+                $pesanan = Pesanan::where('uuid', 'like', "%$uuid%")
+                    ->where('id_user', $userId)
+                    ->with(['toJasa', 'toPaketJasa', 'fromTransaksi.toMetodePembayaran'])
+                    ->first();
+            }
+            
+            if (!$pesanan) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Pesanan tidak ditemukan'
+                ], 404);
+            }
+
+            // Format response untuk chat info box
+            $orderInfo = [
+                'order_id' => $uuid,
+                'pesanan_uuid' => $pesanan->uuid,
+                'jasa' => [
+                    'kategori' => $pesanan->toJasa ? ucfirst($pesanan->toJasa->kategori) : 'Logo',
+                    'nama_jasa' => $pesanan->toJasa ? $pesanan->toJasa->nama_jasa : 'Desain Logo',
+                ],
+                'paket' => [
+                    'kelas_jasa' => $pesanan->toPaketJasa ? ucfirst($pesanan->toPaketJasa->kelas_jasa) : 'Premium',
+                    'harga' => $pesanan->toPaketJasa ? $pesanan->toPaketJasa->harga_paket_jasa : 0,
+                ],
+                'metode_pembayaran' => 'Virtual Account Mandiri', // Default
+                'status_pesanan' => $pesanan->status_pesanan,
+                'created_at' => $pesanan->created_at,
+            ];
+            
+            // Jika ada transaksi, ambil metode pembayaran yang sebenarnya
+            if ($pesanan->fromTransaksi && $pesanan->fromTransaksi->isNotEmpty()) {
+                $transaksi = $pesanan->fromTransaksi->first();
+                if ($transaksi && $transaksi->toMetodePembayaran) {
+                    $orderInfo['metode_pembayaran'] = $transaksi->toMetodePembayaran->nama_metode_pembayaran;
+                }
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Info pesanan berhasil diambil',
+                'data' => $orderInfo
+            ], 200);
+            
+        } catch (\Exception $e) {
+            Log::error('Error getting order info: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal mengambil info pesanan: ' . $e->getMessage()
             ], 500);
         }
     }

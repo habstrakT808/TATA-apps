@@ -28,8 +28,8 @@ class _HomePageState extends State<HomePage> {
 
   void loadUserData() async {
     try {
-      final userData = await UserPreferences.getUser();
-      if (userData != null) {
+    final userData = await UserPreferences.getUser();
+    if (userData != null) {
         print("ALLDATAA : $userData");
         
         // Perbaiki akses data dengan null safety yang lebih baik
@@ -83,8 +83,8 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    loadUserData();
-    fetchReviews();
+      loadUserData();
+      fetchReviews();
   }
 
   Future<List<Review>> fetchReviews() async {

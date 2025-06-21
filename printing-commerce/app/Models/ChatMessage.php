@@ -44,7 +44,7 @@ class ChatMessage extends Model
     public function user()
     {
         if ($this->sender_type === 'user') {
-            return $this->belongsTo(User::class, 'sender_id');
+            return $this->belongsTo(User::class, 'sender_id', 'id_auth');
         }
         return null;
     }
@@ -52,7 +52,27 @@ class ChatMessage extends Model
     public function admin()
     {
         if ($this->sender_type === 'admin') {
-            return $this->belongsTo(Admin::class, 'sender_id');
+            return $this->belongsTo(Admin::class, 'sender_id', 'id_auth');
+        }
+        return null;
+    }
+    
+    public function getSenderAttribute()
+    {
+        if ($this->sender_type === 'user') {
+            $user = User::where('id_auth', $this->sender_id)->first();
+            return $user ? [
+                'id' => $user->id_user,
+                'name' => $user->nama_user,
+                'type' => 'user'
+            ] : null;
+        } elseif ($this->sender_type === 'admin') {
+            $admin = Admin::where('id_auth', $this->sender_id)->first();
+            return $admin ? [
+                'id' => $admin->id_admin,
+                'name' => $admin->nama_admin,
+                'type' => 'admin'
+            ] : null;
         }
         return null;
     }

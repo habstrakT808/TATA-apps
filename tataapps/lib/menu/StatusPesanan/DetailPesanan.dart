@@ -208,18 +208,26 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     if (confirm != true) return;
 
     try {
-      final token = (await UserPreferences.getUser())?['access_token'];
+      final token = await UserPreferences.getToken();
+      if (token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Token tidak ditemukan, silahkan login kembali')),
+        );
+        return;
+      }
+      
       final orderidclean = widget.orderId.replaceAll("#", "");
 
       final response = await http.post(
-        Server.urlLaravel('pesanan/cancel'),
+        Server.urlLaravel('mobile/pesanan/cancel'),
         headers: {
-          'Authorization': 'Bearer $token',
+          'Authorization': token,
           'Accept': 'application/json',
+          'Content-Type': 'application/json',
         },
-        body: {
+        body: jsonEncode({
           'id_pesanan': orderidclean,
-        },
+        }),
       );
 
       if (response.statusCode == 200) {
@@ -261,16 +269,62 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         return;
       }
       
-      final userId = userData['user']['id'].toString();
+      // ✅ PERBAIKAN: Handle berbagai struktur data user
+      String? userId;
+      
+      // Debug: Print struktur userData
+      print('User data structure: $userData');
+      
+      // Cek berbagai kemungkinan struktur data
+      if (userData.containsKey('data') && userData['data'] != null) {
+        // Struktur: {data: {user: {id: ...}}}
+        final data = userData['data'];
+        if (data is Map && data.containsKey('user') && data['user'] != null) {
+          final user = data['user'];
+          if (user is Map && user.containsKey('id')) {
+            userId = user['id'].toString();
+          }
+        }
+      } else if (userData.containsKey('user') && userData['user'] != null) {
+        // Struktur: {user: {id: ...}}
+        final user = userData['user'];
+        if (user is Map && user.containsKey('id')) {
+          userId = user['id'].toString();
+        }
+      } else if (userData.containsKey('id')) {
+        // Struktur langsung: {id: ...}
+        userId = userData['id'].toString();
+      }
+      
+      if (userId == null || userId.isEmpty) {
+        print('Error: Could not extract user ID from userData: $userData');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Data user tidak valid, silakan login ulang')),
+        );
+        setState(() {
+          _isCreatingChat = false;
+        });
+        return;
+      }
+      
       final String orderId = widget.orderId.replaceAll("#", "");
+      
+      print('Opening chat for order: $orderId');
+      print('User ID: $userId');
       
       try {
         // Dapatkan atau buat chat untuk pesanan ini
         final chatId = await _chatService.getOrCreateChatForOrder(orderId);
         
+        print('Chat ID received: $chatId');
+        
         setState(() {
           _isCreatingChat = false;
         });
+        
+        if (chatId == null || chatId.isEmpty) {
+          throw Exception('Received empty chat ID');
+        }
         
         // Navigasi ke halaman chat detail
         Navigator.push(
@@ -281,130 +335,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         );
       } catch (e) {
         print('Error getting or creating chat for order: $e');
-        String errorMessage;
+        String errorMessage = e.toString();
         
-        if (e.toString().contains('permission-denied')) {
-          errorMessage = 'Tidak memiliki izin akses ke Firebase. Untuk memperbaikinya, buka Firebase Console dan perbarui aturan keamanan Firestore.';
-          
-          // Tampilkan dialog dengan petunjuk lebih lanjut
-          showDialog(
-            context: context,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                title: Text('Kesalahan Izin Firebase'),
-                content: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Aplikasi tidak memiliki izin yang cukup untuk mengakses Firebase Firestore. '
-                        'Ini biasa terjadi pada pengembangan aplikasi.\n\n'
-                        'Untuk memperbaikinya, ikuti langkah berikut:'
-                      ),
-                      SizedBox(height: 10),
-                      Text('1. Buka Firebase Console'),
-                      Text('2. Pilih project Anda'),
-                      Text('3. Buka Firestore Database'),
-                      Text('4. Klik tab "Rules"'),
-                      Text('5. Ganti rules dengan kode berikut:'),
-                      SizedBox(height: 10),
-                      Container(
-                        padding: EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'rules_version = \'2\';\n'
-                          'service cloud.firestore {\n'
-                          '  match /databases/{database}/documents {\n'
-                          '    match /{document=**} {\n'
-                          '      allow read, write: if true;\n'
-                          '    }\n'
-                          '  }\n'
-                          '}',
-                          style: TextStyle(fontFamily: 'monospace'),
-                        ),
-                      ),
-                      SizedBox(height: 10),
-                      Text(
-                        'CATATAN: Aturan ini memperbolehkan semua akses dan hanya boleh digunakan untuk pengembangan. '
-                        'Jangan gunakan di production!'
-                      ),
-                    ],
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                    child: Text('Mengerti'),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      Navigator.of(context).pop();
-                      
-                      // Coba kembali membuka chat
-                      setState(() {
-                        _isCreatingChat = true;
-                      });
-                      
-                      try {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Mencoba membuka chat kembali...'),
-                            backgroundColor: Colors.green,
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                        
-                        // Coba kembali membuka chat setelah 1 detik
-                        Future.delayed(Duration(seconds: 1), () {
-                          _openChatWithAdmin();
-                        });
-                      } catch (e) {
-                        setState(() {
-                          _isCreatingChat = false;
-                        });
-                        
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Gagal melakukan pengujian: $e'),
-                          ),
-                        );
-                      }
-                    },
-                    child: Text('Coba Lagi', style: TextStyle(color: Colors.blue)),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Mencoba menggunakan mode alternatif...'),
-                          backgroundColor: Colors.orange,
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                      
-                      // Coba kembali membuka chat setelah 1 detik
-                      Future.delayed(Duration(seconds: 1), () {
-                        _openChatWithAdmin();
-                      });
-                    },
-                    child: Text('Gunakan Mode Alternatif', style: TextStyle(color: Colors.orange)),
-                  ),
-                ],
-              );
-            },
-          );
-        } else {
-          errorMessage = e.toString();
-        }
-        
+        // Tampilkan pesan error yang lebih user-friendly
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Gagal membuat chat: $errorMessage'),
@@ -417,6 +350,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         });
       }
     } catch (e) {
+      print('Error in _openChatWithAdmin: $e');
       setState(() {
         _isCreatingChat = false;
       });

@@ -122,33 +122,33 @@ class UserApi {
   ) async {
     try {
       print('Registering user: $email');
-      final response = await http.post(
+    final response = await http.post(
         Server.urlLaravel("mobile/users/register"),
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: json.encode({
-          "email": email,
-          "no_telpon": noTelpon,
-          "nama_user": nama,
-          "password": password,
-          "password_confirmation": passwordConfirm,
-        }),
-      );
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: json.encode({
+        "email": email,
+        "no_telpon": noTelpon,
+        "nama_user": nama,
+        "password": password,
+        "password_confirmation": passwordConfirm,
+      }),
+    );
 
       print('Register status code: ${response.statusCode}');
       print('Register response: ${response.body}');
 
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      } else if (response.statusCode == 400) {
-        final result = json.decode(response.body);
-        return result;
-      } else if (response.statusCode == 500) {
-        final result = json.decode(response.body);
-        return result;
-      } else {
-        print("Error Kode ${response.statusCode}");
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else if (response.statusCode == 400) {
+      final result = json.decode(response.body);
+      return result;
+    } else if (response.statusCode == 500) {
+      final result = json.decode(response.body);
+      return result;
+    } else {
+      print("Error Kode ${response.statusCode}");
         return {'status': 'error', 'message': 'Server error: ${response.statusCode}'};
       }
     } catch (e) {
@@ -161,22 +161,22 @@ class UserApi {
       String email, String password) async {
     try {
       print('Login attempt for: $email');
-      final response = await http.post(
+    final response = await http.post(
         Server.urlLaravel("mobile/users/login"),
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: json.encode({
-          "email": email,
-          "password": password,
-        }),
-      );
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: json.encode({
+        "email": email,
+        "password": password,
+      }),
+    );
       
       print('Login status code: ${response.statusCode}');
       print('Login response: ${response.body}');
 
-      if (response.statusCode == 200) {
-        final result = json.decode(response.body);
+    if (response.statusCode == 200) {
+      final result = json.decode(response.body);
         print('Login success, saving user data: ${result['data']}');
         
         // Simpan data user lengkap (termasuk token) di UserPreferences
@@ -188,10 +188,10 @@ class UserApi {
         
         print('User data saved to preferences');
         return result['data'];
-      } else if (response.statusCode == 400) {
-        final result = json.decode(response.body);
-        return result;
-      } else {
+    } else if (response.statusCode == 400) {
+      final result = json.decode(response.body);
+      return result;
+    } else {
         print('Login failed with status: ${response.statusCode}');
         return {'status': 'error', 'message': 'Login failed with status: ${response.statusCode}'};
       }
@@ -205,24 +205,24 @@ class UserApi {
     try {
       print('URL request: ${Server.urlLaravel("mobile/users/check-email")}');
       
-      final response = await http.post(
+    final response = await http.post(
         Server.urlLaravel("mobile/users/check-email"),
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: json.encode({"email": email}),
-      );
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: json.encode({"email": email}),
+    );
 
       print('Status code: ${response.statusCode}');
       print('Response body: ${response.body}');
-      
-      if (response.statusCode == 200) {
-        final result = json.decode(response.body);
-        return result;
-      } else if (response.statusCode == 400) {
-        final result = json.decode(response.body);
-        return result;
-      } else {
+
+    if (response.statusCode == 200) {
+      final result = json.decode(response.body);
+      return result;
+    } else if (response.statusCode == 400) {
+      final result = json.decode(response.body);
+      return result;
+    } else {
         return {'status': 'error', 'message': 'Server error: ${response.statusCode}'};
       }
     } catch (e) {
@@ -234,30 +234,30 @@ class UserApi {
   static Future<Map<String, dynamic>?> loginGoogle(String email) async {
     try {
       print('Login with Google for: $email');
-      final response = await http.post(
+    final response = await http.post(
         Server.urlLaravel("mobile/users/login-google"),
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: json.encode({
-          "email": email,
-        }),
-      );
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: json.encode({
+        "email": email,
+      }),
+    );
 
       print('Google login status code: ${response.statusCode}');
       print('Google login response: ${response.body}');
 
-      if (response.statusCode == 200) {
-        final result = json.decode(response.body);
-        final jwtToken = result['data'];
-        await TokenJwt.saveToken(jwtToken);
+    if (response.statusCode == 200) {
+      final result = json.decode(response.body);
+      final jwtToken = result['data'];
+      await TokenJwt.saveToken(jwtToken);
 
-        final decodedPayload = _parseJwt(jwtToken);
-        return decodedPayload;
-      } else if (response.statusCode == 400) {
-        final result = json.decode(response.body);
-        return result;
-      } else {
+      final decodedPayload = _parseJwt(jwtToken);
+      return decodedPayload;
+    } else if (response.statusCode == 400) {
+      final result = json.decode(response.body);
+      return result;
+    } else {
         return {'status': 'error', 'message': 'Server error: ${response.statusCode}'};
       }
     } catch (e) {

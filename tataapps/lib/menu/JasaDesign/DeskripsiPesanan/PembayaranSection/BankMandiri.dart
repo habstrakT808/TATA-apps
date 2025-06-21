@@ -83,57 +83,57 @@ class _MandiriPaymentPageState extends State<MandiriPaymentPage> {
       
       // Siapkan data untuk request
       final uri = Server.urlLaravel('mobile/pesanan/create-with-transaction');
-      final request = http.MultipartRequest('POST', uri);
+    final request = http.MultipartRequest('POST', uri);
       
       // Dapatkan token yang valid
       final token = await UserPreferences.getToken();
       print("Token yang digunakan: $token");
-      
+
       request.headers['Authorization'] = token!;
-      request.headers['Accept'] = 'application/json';
-  
-      // 🔁 Step 1: Mapping jenisPesanan ke ID Jasa
-      String jasaId = widget.id_jasa;
-      
-      // 🔁 Step 2: Mapping kombinasi jasaId + paket → id_paket_jasa (1–9)
-      String paketId = widget.id_paket_jasa;
-      String revisiClean = widget.revisi.replaceAll('x', '');
-  
-      // 🔁 Step 3: Kirim field ke backend
-      request.fields['id_jasa'] = jasaId;
-      request.fields['id_paket_jasa'] = paketId;
-      request.fields['catatan_user'] = widget.deskripsi;
-      request.fields['maksimal_revisi'] = int.parse(revisiClean).toString();
-      request.fields['id_metode_pembayaran'] =
-          "e79fcffe-c7dd-4ac1-ac4b-4ef4faef5d37";
-  
-      // 🔁 Step 4: Upload gambar (jika ada)
-      if (kIsWeb && widget.webImageBytes != null) {
-        // Untuk web, gunakan bytes langsung
-        final image = http.MultipartFile.fromBytes(
-          'gambar_referensi',
-          widget.webImageBytes!,
-          filename: 'web_image.jpg',
-          contentType: MediaType('image', 'jpeg'),
-        );
-        request.files.add(image);
+    request.headers['Accept'] = 'application/json';
+
+    // 🔁 Step 1: Mapping jenisPesanan ke ID Jasa
+    String jasaId = widget.id_jasa;
+    
+    // 🔁 Step 2: Mapping kombinasi jasaId + paket → id_paket_jasa (1–9)
+    String paketId = widget.id_paket_jasa;
+    String revisiClean = widget.revisi.replaceAll('x', '');
+
+    // 🔁 Step 3: Kirim field ke backend
+    request.fields['id_jasa'] = jasaId;
+    request.fields['id_paket_jasa'] = paketId;
+    request.fields['catatan_user'] = widget.deskripsi;
+    request.fields['maksimal_revisi'] = int.parse(revisiClean).toString();
+    request.fields['id_metode_pembayaran'] =
+        "e79fcffe-c7dd-4ac1-ac4b-4ef4faef5d37";
+
+    // 🔁 Step 4: Upload gambar (jika ada)
+    if (kIsWeb && widget.webImageBytes != null) {
+      // Untuk web, gunakan bytes langsung
+      final image = http.MultipartFile.fromBytes(
+        'gambar_referensi',
+        widget.webImageBytes!,
+        filename: 'web_image.jpg',
+        contentType: MediaType('image', 'jpeg'),
+      );
+      request.files.add(image);
       } else if (widget.imageFile != null) {
-        // Untuk mobile
-        final image = await http.MultipartFile.fromPath(
-          'gambar_referensi',
-          widget.imageFile!.path,
-          contentType: MediaType(
-            'image',
-            'jpeg',
-          ),
-        );
-        request.files.add(image);
-      }
-  
+      // Untuk mobile
+      final image = await http.MultipartFile.fromPath(
+        'gambar_referensi',
+        widget.imageFile!.path,
+        contentType: MediaType(
+          'image',
+          'jpeg',
+        ),
+      );
+      request.files.add(image);
+    }
+
       final response = await request.send();
       final resString = await response.stream.bytesToString();
       final resJson = jsonDecode(resString);
-      
+
       print("Response status: ${response.statusCode}");
       print("Response body: $resString");
   
@@ -143,22 +143,28 @@ class _MandiriPaymentPageState extends State<MandiriPaymentPage> {
         // Tambahkan flag create_chat=true untuk membuat chat room otomatis
         final String pesananId = resJson['data']['id_pesanan'];
         
-        // Gunakan AuthHelper untuk request pembuatan chat
-        final chatResponse = await authHelper.authenticatedRequest(
-          'mobile/chat/create-for-order',
-          method: 'POST',
-          body: jsonEncode({
-            'pesanan_uuid': pesananId,
-          }),
-        );
-        
-        if (chatResponse.statusCode == 200 || chatResponse.statusCode == 201) {
-          final chatData = jsonDecode(chatResponse.body);
-          print("Chat room ${chatData['status'] == 'success' ? 'berhasil dibuat' : 'gagal dibuat'}: ${chatData['message']}");
-        } else {
-          print("Gagal membuat chat room: ${chatResponse.statusCode}");
+        // PERBAIKI: Gunakan try-catch untuk chat creation
+        try {
+          final chatResponse = await authHelper.authenticatedRequest(
+            'mobile/chat/create-for-order',
+            method: 'POST',
+            body: jsonEncode({
+              'order_id': pesananId, // GUNAKAN order_id
+              'pesanan_uuid': pesananId, // KIRIM KEDUANYA
+            }),
+          );
+          
+          if (chatResponse.statusCode == 200 || chatResponse.statusCode == 201) {
+            final chatData = jsonDecode(chatResponse.body);
+            print("Chat room berhasil dibuat: ${chatData['message']}");
+          } else {
+            print("Gagal membuat chat room: ${chatResponse.statusCode} - ${chatResponse.body}");
+          }
+        } catch (chatError) {
+          print("Error creating chat for order: $chatError");
+          // Jangan gagalkan seluruh proses jika chat creation gagal
         }
-  
+
         Navigator.push(
           context,
           SmoothPageTransition(

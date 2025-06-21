@@ -1,0 +1,82 @@
+// Example Server.dart file for Flutter app
+
+class Server {
+  // URL yang berbeda berdasarkan platform (web atau mobile)
+  static const String ROUTE = kIsWeb
+      ? "http://localhost:8000/api/"
+      : "http://10.0.2.2:8000/api/";
+  static const bool isDevelopment = true;
+
+  static Uri urlLaravel(String url) {
+    if (!url.startsWith("mobile/") && !url.contains("auth/")) {
+      if (url == "users/register" || url == "users/login" || url == "users/check-email" || 
+          url == "users/forgot-password" || url.startsWith("users/")) {
+        return Uri.parse("${ROUTE}mobile/$url");
+      }
+      if (url == "user/profile") {
+        return Uri.parse("${ROUTE}mobile/$url");
+      }
+      return Uri.parse("${ROUTE}mobile/$url");
+    }
+    return Uri.parse("${ROUTE}$url");
+  }
+
+  static String UrlImageReferensi(String uuid, String url) {
+    if (url == null || url.isEmpty) {
+      return "";
+    }
+    
+    final cleanUuid = uuid.replaceAll("#", "");
+    
+    if (isDevelopment) {
+      // ✅ SELALU GUNAKAN PROXY
+      return "http://localhost:8000/image-proxy.php?type=pesanan&uuid=$cleanUuid&file=$url";
+    } else {
+      return "https://tata-test.my.id/assets3/img/pesanan/$cleanUuid/catatan_pesanan/$url";
+    }
+  }
+
+  static String UrlImageProfil(String url) {
+    if (url == null || url.isEmpty) {
+      return "assets/images/logotext.png";
+    }
+    
+    if (isDevelopment) {
+      // ✅ SELALU GUNAKAN PROXY
+      return "http://localhost:8000/image-proxy.php?type=user&file=$url";
+    } else {
+      return "https://tata-test.my.id/assets3/img/user/$url";
+    }
+  }
+
+  // ✅ TAMBAHKAN METHOD BARU
+  static String UrlImageChat(String fileUrl) {
+    print('UrlImageChat called with: $fileUrl'); // Debug print
+    
+    if (fileUrl == null || fileUrl.isEmpty) {
+      return "";
+    }
+    
+    // Extract filename dari URL
+    final uri = Uri.tryParse(fileUrl);
+    if (uri == null) {
+      print('Failed to parse URI: $fileUrl');
+      return fileUrl;
+    }
+    
+    final fileName = uri.pathSegments.last;
+    print('Extracted fileName: $fileName'); // Debug print
+    
+    if (isDevelopment) {
+      final proxyUrl = "http://localhost:8000/image-proxy.php?type=chat&file=$fileName";
+      print('Generated proxy URL: $proxyUrl'); // Debug print
+      return proxyUrl;
+    } else {
+      return "https://tata-test.my.id/storage/chat_files/$fileName";
+    }
+  }
+
+  static String UrlGambar(String url) {
+    return "assets/images/$url";
+  }
+} 

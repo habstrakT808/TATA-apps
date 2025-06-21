@@ -89,22 +89,22 @@ class FCMHelper {
       
       // Get current token (skip for web in development mode)
       if (!kIsWeb || kReleaseMode) {
-        try {
+    try {
           String? token;
           if (kIsWeb) {
             // Untuk web, gunakan VAPID key
             token = await _messaging.getToken(
               vapidKey: 'BJ7Nle1g-lfmypL4jngAW-8cDnnyq9JO2HtID_WVviL-lf8HRCQ8leegxkhKqQgLpZ3xa5vZnLoeHB_O4KKg1TI',
             );
-          } else {
+            } else {
             // Untuk mobile
             token = await _messaging.getToken();
           }
           
           if (token != null) {
             await _updateFCMToken(token);
-          }
-        } catch (e) {
+            }
+          } catch (e) {
           debugPrint('Error getting FCM token: $e');
           // Lanjutkan inisialisasi meskipun gagal mendapatkan token
         }
@@ -140,7 +140,7 @@ class FCMHelper {
         if (payload != null) {
           final data = json.decode(payload);
           _navigateToMessage(data);
-        }
+  }
       },
     );
     
@@ -164,29 +164,29 @@ class FCMHelper {
     
     if (message.notification != null) {
       debugPrint('Message notification: ${message.notification!.title} - ${message.notification!.body}');
-      
+    
       // Show local notification on Android
       if (!kIsWeb && Platform.isAndroid) {
         _localNotifications.show(
           message.hashCode,
           message.notification!.title,
           message.notification!.body,
-          NotificationDetails(
+        NotificationDetails(
             android: AndroidNotificationDetails(
-              'high_importance_channel',
-              'High Importance Notifications',
+            'high_importance_channel',
+            'High Importance Notifications',
               channelDescription: 'This channel is used for important notifications.',
-              icon: '@mipmap/ic_launcher',
+            icon: '@mipmap/ic_launcher',
               importance: Importance.high,
-              priority: Priority.high,
-            ),
+            priority: Priority.high,
           ),
+        ),
           payload: json.encode(message.data),
-        );
-      }
+      );
+    }
     }
   }
-  
+
   // Handle notification taps
   void _handleNotificationTap(RemoteMessage message) {
     debugPrint('Notification tapped!');
@@ -196,7 +196,7 @@ class FCMHelper {
       _navigateToMessage(message.data);
     }
   }
-  
+
   // Navigate to the appropriate screen based on the notification data
   void _navigateToMessage(Map<String, dynamic> data) {
     final chatId = data['chat_id'];
@@ -204,11 +204,11 @@ class FCMHelper {
     
     if (chatId != null && chatId.isNotEmpty) {
       // Navigate to chat detail screen
-      navigatorKey.currentState?.push(
-        MaterialPageRoute(
+            navigatorKey.currentState?.push(
+              MaterialPageRoute(
           builder: (context) => ChatDetailScreen(chatId: chatId),
-        ),
-      );
+              ),
+            );
     } else if (orderId != null && orderId.isNotEmpty) {
       // Navigate to order detail screen
       // You'll need to implement this navigation
@@ -254,7 +254,7 @@ class FCMHelper {
       debugPrint('Error updating FCM token: $e');
     }
   }
-  
+
   // Metode untuk membuat token FCM di platform web
   Future<void> setupWebFCM() async {
     if (kIsWeb) {
@@ -284,16 +284,16 @@ class FCMHelper {
         debugPrint('Web FCM Token: $token');
         if (token != null) {
           await _updateFCMToken(token);
-        }
-      } catch (e) {
+              }
+            } catch (e) {
         debugPrint('Error setting up web FCM: $e');
-      }
-    }
-  }
-  
+            }
+          }
+        }
+        
   // Untuk digunakan di navigasi
   static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
+          
   // Alias untuk _updateFCMToken agar kompatibel dengan kode yang sudah ada
   Future<void> updateFCMToken() async {
     // Skip untuk web dalam mode development

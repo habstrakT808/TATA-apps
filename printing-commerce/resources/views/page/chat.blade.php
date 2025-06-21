@@ -563,38 +563,63 @@ $tPath = app()->environment('local') ? '' : '';
     
     // Fungsi untuk memuat daftar chat
     function loadChatList() {
+        console.log('Loading chat list...');
+        console.log('CSRF Token:', csrfToken);
+        console.log('Request URL:', '/chat/chats');
+        
         // API call ke Laravel untuk mendapatkan daftar chat
         $.ajax({
             url: '/chat/chats',
             method: 'GET',
             headers: {
-                'X-CSRF-TOKEN': csrfToken
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
             },
             success: function(response) {
+                console.log('Chat list response SUCCESS:', response);
                 if (response.success) {
+                    console.log('Number of chats received:', response.data.length);
                     renderChatList(response.data);
                 } else {
                     console.error('Failed to load chat list:', response.message);
                     chatList.innerHTML = '<li class="chat-item"><div class="chat-item-content">Tidak ada percakapan</div></li>';
                 }
             },
-            error: function(xhr) {
-                console.error('Error loading chat list:', xhr.responseText);
-                chatList.innerHTML = '<li class="chat-item"><div class="chat-item-content">Gagal memuat percakapan</div></li>';
+            error: function(xhr, status, error) {
+                console.error('Chat list request FAILED');
+                console.error('Status:', xhr.status);
+                console.error('Status Text:', xhr.statusText);
+                console.error('Response Text:', xhr.responseText);
+                console.error('Error:', error);
+                
+                let errorMessage = 'Gagal memuat percakapan';
+                try {
+                    const errorResponse = JSON.parse(xhr.responseText);
+                    errorMessage = errorResponse.message || errorMessage;
+                } catch (e) {
+                    console.error('Failed to parse error response');
+                }
+                
+                chatList.innerHTML = `<li class="chat-item"><div class="chat-item-content">${errorMessage}</div></li>`;
             }
         });
     }
     
     // Render daftar chat
     function renderChatList(chats) {
+        console.log('Rendering chat list with data:', chats);
         chatList.innerHTML = '';
         
         if (chats.length === 0) {
+            console.log('No chats to display');
             chatList.innerHTML = '<li class="chat-item"><div class="chat-item-content">Tidak ada percakapan</div></li>';
             return;
         }
         
-        chats.forEach(chat => {
+        chats.forEach((chat, index) => {
+            console.log(`Rendering chat ${index + 1}:`, chat);
+            
             // Pastikan data user tersedia
             const user = chat.user || { nama_user: 'Pengguna', profile_picture: null };
             
@@ -603,9 +628,15 @@ $tPath = app()->environment('local') ? '' : '';
             li.setAttribute('data-chat-id', chat.uuid);
             li.setAttribute('data-user-id', user.id_user || chat.user_id);
             
+            // PERBAIKAN: Path gambar yang benar
+            const profilePicture = user.profile_picture 
+                ? `${domain}/storage/profile_pictures/${user.profile_picture}` 
+                : `${domain}/assets/images/profile/user-1.jpg`; // ← GUNAKAN PATH YANG ADA
+            
             li.innerHTML = `
                 <div class="chat-item-content">
-                    <img src="${user.profile_picture || '/assets3/img/user/default-profile.jpg'}" alt="${user.nama_user}" class="user-avatar">
+                    <img src="${profilePicture}" alt="${user.nama_user}" class="user-avatar" 
+                         onerror="this.src='${domain}/assets/images/profile/user-1.jpg'">
                     <div class="chat-item-info">
                         <div class="chat-item-header">
                             <span class="chat-item-name">${user.nama_user}</span>
@@ -617,6 +648,8 @@ $tPath = app()->environment('local') ? '' : '';
             `;
             
             li.addEventListener('click', function() {
+                console.log('Chat item clicked:', chat.uuid);
+                
                 // Hapus kelas active dari semua item
                 document.querySelectorAll('.chat-item').forEach(item => {
                     item.classList.remove('active');
@@ -632,7 +665,10 @@ $tPath = app()->environment('local') ? '' : '';
             });
             
             chatList.appendChild(li);
+            console.log(`Chat ${index + 1} rendered successfully`);
         });
+        
+        console.log('All chats rendered successfully');
     }
     
     // Tampilkan area chat
@@ -644,12 +680,18 @@ $tPath = app()->environment('local') ? '' : '';
         const user = chat.user || { nama_user: 'Pengguna', profile_picture: null };
         const pesanan = chat.pesanan || null;
         
+        // PERBAIKAN: Path gambar yang benar
+        const profilePicture = user.profile_picture 
+            ? `${domain}/storage/profile_pictures/${user.profile_picture}` 
+            : `${domain}/assets/images/profile/user-1.jpg`; // ← GUNAKAN PATH YANG ADA
+        
         // Tampilkan header dengan info user
         chatMainHeader.innerHTML = `
-            <img src="${user.profile_picture || '/assets3/img/user/default-profile.jpg'}" alt="${user.nama_user}">
+            <img src="${profilePicture}" alt="${user.nama_user}" 
+                 onerror="this.src='${domain}/assets/images/profile/user-1.jpg'">
             <div class="chat-main-header-info">
                 <h4>${user.nama_user}</h4>
-                <p>${pesanan ? `Pesanan #${pesanan.id_pesanan}` : 'Chat Umum'}</p>
+                <p>${pesanan ? `Pesanan #${pesanan.uuid}` : 'Chat Umum'}</p>
             </div>
         `;
         

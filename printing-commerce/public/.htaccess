@@ -16,6 +16,15 @@
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
     
+    # ✅ TAMBAHAN: Redirect chat_files requests to image proxy
+    RewriteCond %{REQUEST_URI} ^/storage/chat_files/(.+)$
+    RewriteRule ^storage/chat_files/(.+)$ /image-proxy.php?type=chat&file=$1 [L,R=302]
+    
+    # Handle static files
+    RewriteCond %{REQUEST_URI} ^/storage/
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^storage/(.*)$ /storage/$1 [L]
+    
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_URI} (.+)/$

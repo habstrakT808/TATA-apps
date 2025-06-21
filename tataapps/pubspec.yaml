@@ -18,14 +18,14 @@ dependencies:
   flutter_bloc: ^9.1.1
   flutter_sticky_header: ^0.7.0
   http: ^1.1.0
-  http_parser: ^4.0.2
+  http_parser: ^4.1.2
   flutter_otp_text_field: ^1.1.1
   get: ^4.6.6
   carousel_slider: ^5.1.1
   smooth_page_indicator: ^1.1.0
   url_launcher: ^6.2.5
   shimmer: ^3.0.0
-  image_picker: ^1.0.4
+  image_picker: ^1.1.2
   path_provider: ^2.1.1
   dio: ^5.3.3
   firebase_messaging: ^15.2.6

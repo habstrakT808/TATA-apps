@@ -133,9 +133,87 @@ class _MainPageState extends State<MainPage> {
   }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _currentIndex = index;
-    });
+    // Jika user ingin mengakses chat (index 2), cek autentikasi dulu
+    if (index == 2) {
+      _checkAuthenticationForChat(index);
+    } else {
+      setState(() {
+        _currentIndex = index;
+      });
+    }
+  }
+
+  Future<void> _checkAuthenticationForChat(int index) async {
+    try {
+      final userData = await UserPreferences.getUser();
+      
+      if (userData == null) {
+        _showLoginRequired();
+        return;
+      }
+      
+      // Cek apakah bisa extract user ID dengan aman
+      String? userId;
+      
+      if (userData.containsKey('data') && 
+          userData['data'] != null && 
+          userData['data'].containsKey('user') && 
+          userData['data']['user'] != null) {
+        final user = userData['data']['user'];
+        if (user is Map && user.containsKey('id')) {
+          userId = user['id'].toString();
+        }
+      } else if (userData.containsKey('user') && userData['user'] != null) {
+        final user = userData['user'];
+        if (user is Map && user.containsKey('id')) {
+          userId = user['id'].toString();
+        }
+      } else if (userData.containsKey('id')) {
+        userId = userData['id'].toString();
+      }
+      
+      if (userId == null || userId.isEmpty) {
+        print('Could not extract user ID for chat access');
+        _showLoginRequired();
+        return;
+      }
+      
+      // Jika berhasil extract user ID, lanjutkan ke chat
+      setState(() {
+        _currentIndex = index;
+      });
+      
+    } catch (e) {
+      print('Error checking authentication for chat: $e');
+      _showLoginRequired();
+    }
+  }
+
+  void _showLoginRequired() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Login Diperlukan'),
+        content: Text('Anda harus login untuk mengakses fitur chat'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.pushNamedAndRemoveUntil(
+                context, 
+                '/login', 
+                (route) => false
+              );
+            },
+            child: Text('Login'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

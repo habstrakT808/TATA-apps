@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:TATA/helper/auth_helper.dart';
 
 class BNIPaymentPage extends StatefulWidget {
   final String id_jasa;
@@ -51,11 +52,13 @@ class BNIPaymentPage extends StatefulWidget {
 
 class _BNIPaymentPageState extends State<BNIPaymentPage> {
   late String nomorPemesanan;
+  late AuthHelper authHelper;
 
   @override
   void initState() {
     super.initState();
     nomorPemesanan = _generateKodePemesanan();
+    authHelper = AuthHelper();
   }
 
   String _generateKodePemesanan() {
@@ -65,33 +68,28 @@ class _BNIPaymentPageState extends State<BNIPaymentPage> {
   }
 
   Future<void> kirimPesanan() async {
-    final uri = Server.urlLaravel('pesanan/create-with-transaction');
+    final uri = Server.urlLaravel('mobile/pesanan/create-with-transaction');
     final request = http.MultipartRequest('POST', uri);
-    final data = await UserPreferences.getUser();
+    
+    final token = await UserPreferences.getToken();
+    if (token == null) {
+      throw Exception('Token tidak ditemukan');
+    }
 
-    request.headers['Authorization'] = 'Bearer ${data!['access_token']}';
+    request.headers['Authorization'] = token;
     request.headers['Accept'] = 'application/json';
 
-    // 🔁 Step 1: Mapping jenisPesanan ke ID Jasa
     String jasaId = widget.id_jasa;
-
-    // 🔁 Step 2: Mapping kombinasi jasaId + paket → id_paket_jasa (1–9)
-
     String paketId = widget.id_paket_jasa;
     String revisiClean = widget.revisi.replaceAll('x', '');
 
-    // 🔁 Step 3: Kirim field ke backend
     request.fields['id_jasa'] = jasaId;
     request.fields['id_paket_jasa'] = paketId;
     request.fields['catatan_user'] = widget.deskripsi;
     request.fields['maksimal_revisi'] = int.parse(revisiClean).toString();
-    request.fields['id_metode_pembayaran'] =
-        "9712fbe3-b51e-4b7e-95e6-33566021ed3b"; // UUID untuk BNI
-    request.fields['catatan_user'] = widget.deskripsi;
+    request.fields['id_metode_pembayaran'] = "9712fbe3-b51e-4b7e-95e6-33566021ed3b";
 
-    // 🔁 Step 4: Upload gambar (jika ada)
     if (kIsWeb && widget.webImageBytes != null) {
-      // Untuk web, gunakan bytes langsung
       final image = http.MultipartFile.fromBytes(
         'gambar_referensi',
         widget.webImageBytes!,
@@ -100,7 +98,6 @@ class _BNIPaymentPageState extends State<BNIPaymentPage> {
       );
       request.files.add(image);
     } else if (widget.imageFile != null) {
-      // Untuk mobile
       final image = await http.MultipartFile.fromPath(
         'gambar_referensi',
         widget.imageFile!.path,
@@ -114,25 +111,33 @@ class _BNIPaymentPageState extends State<BNIPaymentPage> {
       final resString = await response.stream.bytesToString();
       final resJson = jsonDecode(resString);
 
-      if (response.statusCode == 201) {
+      print("Response status: ${response.statusCode}");
+      print("Response body: $resString");
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
         print("Pesanan berhasil: ${resJson['data']['id_pesanan']}");
         
-        // Tambahkan flag create_chat=true untuk membuat chat room otomatis
         final String pesananId = resJson['data']['id_pesanan'];
-        final chatResponse = await http.post(
-          Server.urlLaravel('chat/create-for-order'),
-          headers: {
-            'Authorization': 'Bearer ${data['access_token']}',
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'pesanan_uuid': pesananId,
-          }),
-        );
         
-        final chatData = jsonDecode(chatResponse.body);
-        print("Chat room ${chatData['status'] == 'success' ? 'berhasil dibuat' : 'gagal dibuat'}: ${chatData['message']}");
+        try {
+          final chatResponse = await authHelper.authenticatedRequest(
+            'mobile/chat/create-for-order',
+            method: 'POST',
+            body: jsonEncode({
+              'order_id': pesananId,
+              'pesanan_uuid': pesananId,
+            }),
+          );
+          
+          if (chatResponse.statusCode == 200 || chatResponse.statusCode == 201) {
+            final chatData = jsonDecode(chatResponse.body);
+            print("Chat room berhasil dibuat: ${chatData['message']}");
+          } else {
+            print("Gagal membuat chat room: ${chatResponse.statusCode} - ${chatResponse.body}");
+          }
+        } catch (chatError) {
+          print("Error creating chat for order: $chatError");
+        }
 
         Navigator.push(
           context,
@@ -157,11 +162,24 @@ class _BNIPaymentPageState extends State<BNIPaymentPage> {
             ),
           ),
         );
+      } else if (response.statusCode == 401) {
+        print("Token tidak valid, mencoba refresh token...");
+        final refreshed = await authHelper.isAuthenticated();
+        
+        if (refreshed) {
+          print("Token berhasil di-refresh, mencoba kirim pesanan lagi...");
+          await kirimPesanan();
+        } else {
+          print("Gagal refresh token, mengarahkan ke halaman login...");
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Anda perlu login kembali')),
+          );
+          Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+        }
       } else {
         print("Gagal membuat pesanan: ${resJson['message']}");
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Gagal membuat pesanan: ${resJson['message']}')),
+          SnackBar(content: Text('Gagal membuat pesanan: ${resJson['message']}')),
         );
       }
     } catch (e) {
@@ -191,8 +209,8 @@ class _BNIPaymentPageState extends State<BNIPaymentPage> {
               ),
               child: Text("Sudah"),
               onPressed: () async {
-                Navigator.of(context).pop(); // Tutup dialog
-                await kirimPesanan(); // Kirim data ke API
+                Navigator.of(context).pop();
+                await kirimPesanan();
               },
             ),
           ],
@@ -300,7 +318,7 @@ class _BNIPaymentPageState extends State<BNIPaymentPage> {
       child: Row(
         children: [
           Image.asset('assets/images/BankBNI.png',
-              width: 36), // Pastikan gambar ini tersedia
+              width: 36),
           SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,

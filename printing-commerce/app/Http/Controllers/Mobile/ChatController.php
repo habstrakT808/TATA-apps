@@ -225,6 +225,9 @@ class ChatController extends Controller
             $chat->updated_at = now();
             $chat->save();
             
+            Log::info("Message sent to chat {$chat->uuid} by user {$userId}");
+            Log::info("Chat admin_id: {$chat->admin_id}");
+            
             return response()->json([
                 'status' => 'success',
                 'message' => 'Pesan berhasil dikirim',
@@ -232,6 +235,7 @@ class ChatController extends Controller
             ]);
             
         } catch (\Exception $e) {
+            Log::error('Error sending message: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal mengirim pesan: ' . $e->getMessage()
@@ -282,16 +286,57 @@ class ChatController extends Controller
             $page = $request->page ?? 1;
             $limit = $request->limit ?? 20;
             
-            // Get messages
+            // PERBAIKAN: Get messages dengan sender info
             $messages = ChatMessage::where('chat_uuid', $chat->uuid)
                        ->orderBy('created_at', 'desc')
                        ->paginate($limit, ['*'], 'page', $page);
+            
+            // Transform messages untuk include sender info
+            $transformedMessages = $messages->getCollection()->map(function($message) {
+                $senderInfo = null;
+                
+                if ($message->sender_type === 'user') {
+                    $user = User::where('id_auth', $message->sender_id)->first();
+                    $senderInfo = $user ? [
+                        'id' => $user->id_user,
+                        'name' => $user->nama_user,
+                        'type' => 'user'
+                    ] : null;
+                } elseif ($message->sender_type === 'admin') {
+                    $admin = Admin::where('id_auth', $message->sender_id)->first();
+                    $senderInfo = $admin ? [
+                        'id' => $admin->id_admin,
+                        'name' => $admin->nama_admin,
+                        'type' => 'admin'
+                    ] : null;
+                }
+                
+                return [
+                    'id' => $message->id,
+                    'uuid' => $message->uuid,
+                    'chat_uuid' => $message->chat_uuid,
+                    'sender_id' => $message->sender_id,
+                    'sender_type' => $message->sender_type,
+                    'sender_info' => $senderInfo,
+                    'message' => $message->message,
+                    'message_type' => $message->message_type,
+                    'file_url' => $message->file_url,
+                    'is_read' => $message->is_read,
+                    'created_at' => $message->created_at,
+                    'updated_at' => $message->updated_at,
+                ];
+            });
+            
+            // Update pagination data
+            $messages->setCollection($transformedMessages);
             
             // Mark messages as read if sent by admin
             ChatMessage::where('chat_uuid', $chat->uuid)
                 ->where('sender_type', 'admin')
                 ->where('is_read', false)
                 ->update(['is_read' => true]);
+            
+            Log::info("Returned " . $transformedMessages->count() . " messages for chat {$chat->uuid}");
             
             return response()->json([
                 'status' => 'success',
@@ -300,6 +345,7 @@ class ChatController extends Controller
             ]);
             
         } catch (\Exception $e) {
+            Log::error('Error getting messages: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal mendapatkan pesan: ' . $e->getMessage()
@@ -327,8 +373,25 @@ class ChatController extends Controller
             $file = $request->file('file');
             $fileName = Str::uuid() . '.' . $file->getClientOriginalExtension();
             
+            // Pastikan direktori ada
+            $uploadPath = storage_path('app/public/chat_files');
+            if (!file_exists($uploadPath)) {
+                mkdir($uploadPath, 0755, true);
+            }
+            
             $path = $file->storeAs('chat_files', $fileName, 'public');
-            $url = asset('storage/' . $path);
+            
+            // ✅ SELALU GUNAKAN PROXY UNTUK SEMUA REQUEST
+            $url = url('image-proxy.php?type=chat&file=' . $fileName);
+            
+            Log::info("File uploaded successfully", [
+                'original_name' => $file->getClientOriginalName(),
+                'stored_name' => $fileName,
+                'path' => $path,
+                'url' => $url,
+                'file_exists' => file_exists(storage_path('app/public/' . $path)),
+                'full_path' => storage_path('app/public/' . $path)
+            ]);
             
             return response()->json([
                 'status' => 'success',
@@ -340,6 +403,7 @@ class ChatController extends Controller
             ]);
             
         } catch (\Exception $e) {
+            Log::error('Upload file error: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal mengunggah file: ' . $e->getMessage()
@@ -388,15 +452,21 @@ class ChatController extends Controller
     public function getMessagesByPesanan($pesananUuid)
     {
         try {
+            Log::info("=== GET MESSAGES BY PESANAN START ===");
+            Log::info("Pesanan UUID: $pesananUuid");
+            
             $userId = Auth::id();
             $user = User::where('id_auth', $userId)->first();
             
             if (!$user) {
+                Log::error("User not found for auth_id: $userId");
                 return response()->json([
                     'status' => 'error',
                     'message' => 'User tidak ditemukan'
                 ], 404);
             }
+            
+            Log::info("User found: {$user->nama_user} (ID: {$user->id_user})");
             
             // Check if this is a short order ID instead of UUID
             if (!Str::contains($pesananUuid, '-') && strlen($pesananUuid) <= 8) {
@@ -425,6 +495,8 @@ class ChatController extends Controller
                    ->first();
             
             if (!$chat) {
+                Log::warning("Chat not found for pesanan: $pesananUuid, user: {$user->id_user}");
+                
                 // If chat doesn't exist, try to create one
                 try {
                     $chat = $this->createChatForOrder($pesananUuid, $user->id_user);
@@ -444,10 +516,55 @@ class ChatController extends Controller
                 }
             }
             
+            Log::info("Chat found: {$chat->uuid}");
+            
             // Get messages
             $messages = ChatMessage::where('chat_uuid', $chat->uuid)
                        ->orderBy('created_at', 'asc')
                        ->get();
+            
+            Log::info("Found " . $messages->count() . " messages");
+            
+            // Transform messages untuk include sender info
+            $transformedMessages = $messages->map(function($message) {
+                $senderInfo = null;
+                
+                if ($message->sender_type === 'user') {
+                    $user = User::where('id_auth', $message->sender_id)->first();
+                    $senderInfo = $user ? [
+                        'id' => $user->id_user,
+                        'name' => $user->nama_user,
+                        'type' => 'user'
+                    ] : null;
+                } elseif ($message->sender_type === 'admin') {
+                    $admin = Admin::where('id_auth', $message->sender_id)->first();
+                    $senderInfo = $admin ? [
+                        'id' => $admin->id_admin,
+                        'name' => $admin->nama_admin,
+                        'type' => 'admin'
+                    ] : null;
+                }
+                
+                Log::info("Message ID {$message->id}: sender_type={$message->sender_type}, sender_id={$message->sender_id}, message={$message->message}");
+                if ($senderInfo) {
+                    Log::info("Sender info: " . json_encode($senderInfo));
+                }
+                
+                return [
+                    'id' => $message->id,
+                    'uuid' => $message->uuid,
+                    'chat_uuid' => $message->chat_uuid,
+                    'sender_id' => $message->sender_id,
+                    'sender_type' => $message->sender_type,
+                    'sender_info' => $senderInfo,
+                    'message' => $message->message,
+                    'message_type' => $message->message_type,
+                    'file_url' => $message->file_url,
+                    'is_read' => $message->is_read,
+                    'created_at' => $message->created_at,
+                    'updated_at' => $message->updated_at,
+                ];
+            });
             
             // Mark messages as read if sent by admin
             ChatMessage::where('chat_uuid', $chat->uuid)
@@ -455,14 +572,214 @@ class ChatController extends Controller
                 ->where('is_read', false)
                 ->update(['is_read' => true]);
             
+            Log::info("=== GET MESSAGES BY PESANAN END ===");
+            
             return response()->json([
                 'status' => 'success',
                 'message' => 'Berhasil mendapatkan pesan',
-                'messages' => $messages
+                'messages' => $transformedMessages
             ]);
             
         } catch (\Exception $e) {
             Log::error('Error getting messages by pesanan: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal mendapatkan pesan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    /**
+     * Get messages by Order ID - untuk kompatibilitas dengan Flutter app
+     * Route: GET /api/mobile/chat/messages/{orderId}
+     */
+    public function getMessagesByOrderId($orderId)
+    {
+        try {
+            Log::info("=== GET MESSAGES BY ORDER ID START ===");
+            Log::info("Order ID: $orderId");
+            
+            $userId = Auth::id();
+            $user = User::where('id_auth', $userId)->first();
+            
+            if (!$user) {
+                Log::error("User not found for auth_id: $userId");
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak ditemukan'
+                ], 404);
+            }
+            
+            Log::info("User found: {$user->nama_user} (ID: {$user->id_user})");
+            
+            // Variabel untuk menyimpan UUID pesanan yang valid
+            $pesananUuid = null;
+            $chat = null;
+            
+            // Strategi pencarian bertingkat:
+            
+            // 1. Coba langsung sebagai UUID pesanan
+            $pesanan = Pesanan::where('uuid', $orderId)->first();
+            if ($pesanan && $pesanan->id_user == $user->id_user) {
+                $pesananUuid = $orderId;
+                Log::info("Found pesanan directly with UUID: $orderId");
+            }
+            
+            // 2. Coba cari di tabel transaksi berdasarkan order_id
+            if (!$pesananUuid) {
+                $transaksi = Transaksi::where('order_id', $orderId)->first();
+                if ($transaksi) {
+                    $pesanan = Pesanan::where('uuid', $transaksi->pesanan_uuid)
+                        ->where('id_user', $user->id_user)
+                        ->first();
+                    if ($pesanan) {
+                        $pesananUuid = $pesanan->uuid;
+                        Log::info("Found pesanan from transaksi: $pesananUuid");
+                    }
+                }
+            }
+            
+            // 3. Coba cari chat yang sudah ada dengan order reference ini
+            if (!$pesananUuid) {
+                $chat = Chat::where('pesanan_uuid', $orderId)
+                    ->where('user_id', $user->id_user)
+                    ->first();
+                if ($chat) {
+                    $pesananUuid = $orderId; // Gunakan order ID sebagai pesanan UUID
+                    Log::info("Found existing chat with order reference: $orderId");
+                }
+            }
+            
+            // 4. Jika masih tidak ketemu, coba cari dengan partial match
+            if (!$pesananUuid) {
+                $pesanan = Pesanan::where('uuid', 'like', "%$orderId%")
+                    ->where('id_user', $user->id_user)
+                    ->first();
+                if ($pesanan) {
+                    $pesananUuid = $pesanan->uuid;
+                    Log::info("Found pesanan with partial match: $pesananUuid");
+                }
+            }
+            
+            // 5. Jika tetap tidak ketemu, buat chat dummy untuk order ID ini
+            if (!$pesananUuid) {
+                Log::warning("Could not find any valid pesanan for order: $orderId");
+                
+                // Return empty messages dengan pesan informasi
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Chat untuk pesanan ini belum tersedia',
+                    'messages' => [
+                        [
+                            'id' => 0,
+                            'uuid' => 'system-' . time(),
+                            'chat_uuid' => 'system',
+                            'sender_id' => 0,
+                            'sender_type' => 'system',
+                            'sender_info' => [
+                                'id' => 0,
+                                'name' => 'System',
+                                'type' => 'system'
+                            ],
+                            'message' => "Pesanan dengan ID '$orderId' tidak ditemukan atau belum memiliki chat. Silakan periksa kembali ID pesanan Anda.",
+                            'message_type' => 'text',
+                            'file_url' => null,
+                            'is_read' => false,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]
+                    ]
+                ]);
+            }
+            
+            // Cari atau buat chat
+            if (!$chat) {
+                $chat = Chat::where('pesanan_uuid', $pesananUuid)
+                    ->where('user_id', $user->id_user)
+                    ->first();
+            }
+            
+            if (!$chat) {
+                Log::info("Creating new chat for pesanan: $pesananUuid");
+                try {
+                    $chat = $this->createChatForOrder($pesananUuid, $user->id_user);
+                } catch (\Exception $e) {
+                    Log::error('Error creating chat: ' . $e->getMessage());
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Gagal membuat chat untuk pesanan ini'
+                    ], 500);
+                }
+            }
+            
+            Log::info("Chat found/created: {$chat->uuid}");
+            
+            // Get messages
+            $messages = ChatMessage::where('chat_uuid', $chat->uuid)
+                ->orderBy('created_at', 'asc')
+                ->get();
+            
+            Log::info("Found " . $messages->count() . " messages");
+            
+            // Transform messages
+            $transformedMessages = $messages->map(function($message) {
+                $senderInfo = null;
+                
+                if ($message->sender_type === 'user') {
+                    $user = User::where('id_auth', $message->sender_id)->first();
+                    $senderInfo = $user ? [
+                        'id' => $user->id_user,
+                        'name' => $user->nama_user,
+                        'type' => 'user'
+                    ] : null;
+                } elseif ($message->sender_type === 'admin') {
+                    $admin = Admin::where('id_auth', $message->sender_id)->first();
+                    $senderInfo = $admin ? [
+                        'id' => $admin->id_admin,
+                        'name' => $admin->nama_admin,
+                        'type' => 'admin'
+                    ] : null;
+                }
+                
+                return [
+                    'id' => $message->id,
+                    'uuid' => $message->uuid,
+                    'chat_uuid' => $message->chat_uuid,
+                    'sender_id' => $message->sender_id,
+                    'sender_type' => $message->sender_type,
+                    'sender_info' => $senderInfo,
+                    'message' => $message->message,
+                    'message_type' => $message->message_type,
+                    'file_url' => $message->file_url,
+                    'is_read' => $message->is_read,
+                    'created_at' => $message->created_at,
+                    'updated_at' => $message->updated_at,
+                ];
+            });
+            
+            // Mark admin messages as read
+            ChatMessage::where('chat_uuid', $chat->uuid)
+                ->where('sender_type', 'admin')
+                ->where('is_read', false)
+                ->update(['is_read' => true]);
+            
+            Log::info("=== GET MESSAGES BY ORDER ID END ===");
+            
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Berhasil mendapatkan pesan',
+                'messages' => $transformedMessages,
+                'chat_info' => [
+                    'chat_uuid' => $chat->uuid,
+                    'pesanan_uuid' => $pesananUuid,
+                    'order_id' => $orderId
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error getting messages by order ID: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal mendapatkan pesan: ' . $e->getMessage()
@@ -500,51 +817,66 @@ class ChatController extends Controller
                 ], 404);
             }
             
-            $pesananUuid = $request->pesanan_uuid;
+            $orderId = $request->pesanan_uuid;
+            Log::info("Sending message for order: $orderId");
             
-            // Check if this is a short order ID instead of UUID
-            if (!Str::contains($pesananUuid, '-') && strlen($pesananUuid) <= 8) {
-                // Try to find the corresponding UUID from the Transaksi table
-                $transaksi = Transaksi::where('order_id', $pesananUuid)
-                    ->whereHas('toPesanan', function($query) use ($user) {
-                        $query->where('id_user', $user->id_user);
-                    })
-                    ->first();
-                
+            // Gunakan strategi pencarian yang sama seperti getMessagesByOrderId
+            $pesananUuid = null;
+            $chat = null;
+            
+            // 1. Coba langsung sebagai UUID pesanan
+            $pesanan = Pesanan::where('uuid', $orderId)->first();
+            if ($pesanan && $pesanan->id_user == $user->id_user) {
+                $pesananUuid = $orderId;
+            }
+            
+            // 2. Coba cari di tabel transaksi
+            if (!$pesananUuid) {
+                $transaksi = Transaksi::where('order_id', $orderId)->first();
                 if ($transaksi) {
-                    $pesananUuid = $transaksi->toPesanan->uuid;
-                    Log::info("Found UUID $pesananUuid for order ID $pesananUuid");
-                } else {
-                    Log::warning("Could not find UUID for order ID $pesananUuid");
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Chat untuk pesanan ini tidak ditemukan'
-                    ], 404);
+                    $pesanan = Pesanan::where('uuid', $transaksi->pesanan_uuid)
+                        ->where('id_user', $user->id_user)
+                        ->first();
+                    if ($pesanan) {
+                        $pesananUuid = $pesanan->uuid;
+                    }
                 }
             }
             
-            // Find chat for this pesanan
-            $chat = Chat::where('pesanan_uuid', $pesananUuid)
-                   ->where('user_id', $user->id_user)
-                   ->first();
+            // 3. Coba cari chat yang sudah ada
+            if (!$pesananUuid) {
+                $chat = Chat::where('pesanan_uuid', $orderId)
+                    ->where('user_id', $user->id_user)
+                    ->first();
+                if ($chat) {
+                    $pesananUuid = $orderId;
+                }
+            }
+            
+            // Jika tidak ketemu sama sekali, return error
+            if (!$pesananUuid) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Chat untuk pesanan ini tidak ditemukan'
+                ], 404);
+            }
+            
+            // Cari atau buat chat
+            if (!$chat) {
+                $chat = Chat::where('pesanan_uuid', $pesananUuid)
+                    ->where('user_id', $user->id_user)
+                    ->first();
+            }
             
             if (!$chat) {
-                // If chat doesn't exist, try to create one
                 try {
                     $chat = $this->createChatForOrder($pesananUuid, $user->id_user);
-                    
-                    if (!$chat) {
-                        return response()->json([
-                            'status' => 'error',
-                            'message' => 'Chat untuk pesanan ini tidak ditemukan'
-                        ], 404);
-                    }
                 } catch (\Exception $e) {
                     Log::error('Error creating chat: ' . $e->getMessage());
                     return response()->json([
                         'status' => 'error',
-                        'message' => 'Chat untuk pesanan ini tidak ditemukan'
-                    ], 404);
+                        'message' => 'Gagal membuat chat untuk pesanan ini'
+                    ], 500);
                 }
             }
 
@@ -560,10 +892,13 @@ class ChatController extends Controller
             $chatMessage->save();
             
             // Update last message
-            $chat->last_message = substr($request->message, 0, 50);
+            $lastMessage = $request->message_type === 'image' ? '📷 Gambar' : $request->message;
+            $chat->last_message = substr($lastMessage, 0, 50);
             $chat->unread_count = ($chat->unread_count ?? 0) + 1;
             $chat->updated_at = now();
             $chat->save();
+            
+            Log::info("Message sent successfully for order: $orderId");
             
             return response()->json([
                 'status' => 'success',
@@ -587,7 +922,8 @@ class ChatController extends Controller
     {
         try {
             $validator = Validator::make($request->all(), [
-                'chat_uuid' => 'required|string|exists:chats,uuid',
+                'chat_uuid' => 'sometimes|string|exists:chats,uuid',
+                'order_id' => 'sometimes|string',
             ]);
 
             if ($validator->fails()) {
@@ -607,9 +943,49 @@ class ChatController extends Controller
                 ], 404);
             }
 
-            $chat = Chat::where('uuid', $request->chat_uuid)
-                   ->where('user_id', $user->id_user)
-                   ->first();
+            $chat = null;
+            
+            if ($request->has('order_id')) {
+                $orderId = $request->order_id;
+                
+                $pesananUuid = null;
+                
+                $pesanan = Pesanan::where('uuid', $orderId)->first();
+                if ($pesanan && $pesanan->id_user == $user->id_user) {
+                    $pesananUuid = $orderId;
+                }
+                
+                if (!$pesananUuid) {
+                    $transaksi = Transaksi::where('order_id', $orderId)->first();
+                    if ($transaksi) {
+                        $pesanan = Pesanan::where('uuid', $transaksi->pesanan_uuid)
+                            ->where('id_user', $user->id_user)
+                            ->first();
+                        if ($pesanan) {
+                            $pesananUuid = $pesanan->uuid;
+                        }
+                    }
+                }
+                
+                if (!$pesananUuid) {
+                    $chat = Chat::where('pesanan_uuid', $orderId)
+                        ->where('user_id', $user->id_user)
+                        ->first();
+                    if ($chat) {
+                        $pesananUuid = $orderId;
+                    }
+                }
+                
+                if (!$chat && $pesananUuid) {
+                    $chat = Chat::where('pesanan_uuid', $pesananUuid)
+                        ->where('user_id', $user->id_user)
+                        ->first();
+                }
+            } else {
+                $chat = Chat::where('uuid', $request->chat_uuid)
+                       ->where('user_id', $user->id_user)
+                       ->first();
+            }
             
             if (!$chat) {
                 return response()->json([
@@ -618,13 +994,11 @@ class ChatController extends Controller
                 ], 404);
             }
 
-            // Mark messages as read if sent by admin
             ChatMessage::where('chat_uuid', $chat->uuid)
                 ->where('sender_type', 'admin')
                 ->where('is_read', false)
                 ->update(['is_read' => true]);
             
-            // Reset unread count
             $chat->unread_count = 0;
             $chat->save();
             
@@ -634,6 +1008,7 @@ class ChatController extends Controller
             ]);
             
         } catch (\Exception $e) {
+            Log::error('Error marking messages as read: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal menandai pesan telah dibaca: ' . $e->getMessage()
@@ -648,7 +1023,8 @@ class ChatController extends Controller
     {
         try {
             $validator = Validator::make($request->all(), [
-                'order_id' => 'required|string',
+                'order_id' => 'sometimes|string',
+                'pesanan_uuid' => 'sometimes|string',
             ]);
 
             if ($validator->fails()) {
@@ -669,7 +1045,16 @@ class ChatController extends Controller
                 ], 404);
             }
             
-            $orderId = $request->order_id;
+            // PERBAIKI: Ambil order_id dari request, fallback ke pesanan_uuid
+            $orderId = $request->order_id ?? $request->pesanan_uuid;
+            
+            if (!$orderId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Parameter order_id atau pesanan_uuid diperlukan'
+                ], 400);
+            }
+            
             Log::info("Looking for order with ID/UUID: $orderId");
             
             // Variabel untuk menyimpan UUID pesanan yang valid
@@ -827,34 +1212,33 @@ class ChatController extends Controller
                 throw new \Exception('Pesanan tidak ditemukan');
             }
             
-            // Coba cari admin dengan role admin_chat terlebih dahulu
-            $admin = Admin::join('auth', 'admin.id_auth', '=', 'auth.id_auth')
-                    ->where('auth.role', 'admin_chat')
-                    ->inRandomOrder()
+            // PERBAIKAN: Cari admin dengan email adminchat@gmail.com
+            $adminAuth = \App\Models\Auth::where('email', 'adminchat@gmail.com')
+                        ->where('role', 'admin_chat')
                     ->first();
             
-            // Jika tidak ada admin_chat, cari admin dengan role admin
-            if (!$admin) {
-                $admin = Admin::join('auth', 'admin.id_auth', '=', 'auth.id_auth')
-                        ->where('auth.role', 'admin')
-                        ->inRandomOrder()
-                        ->first();
+            if (!$adminAuth) {
+                // Jika tidak ada, cari admin_chat role lainnya
+                $adminAuth = \App\Models\Auth::where('role', 'admin_chat')->first();
             }
             
-            // Jika masih tidak ada, cari admin dengan role apapun
-            if (!$admin) {
-                $admin = Admin::join('auth', 'admin.id_auth', '=', 'auth.id_auth')
-                        ->inRandomOrder()
-                        ->first();
+            if (!$adminAuth) {
+                // Fallback ke admin biasa
+                $adminAuth = \App\Models\Auth::where('role', 'admin')->first();
             }
             
-            // Jika masih tidak ada admin sama sekali, gunakan ID admin default
-            if (!$admin) {
-                Log::warning('No admin found, using default admin ID 1');
-                $adminId = 1;
-            } else {
-                $adminId = $admin->id_admin;
+            if (!$adminAuth) {
+                throw new \Exception('Tidak ada admin yang tersedia');
             }
+            
+            // Cari admin berdasarkan auth
+            $admin = Admin::where('id_auth', $adminAuth->id_auth)->first();
+            
+            if (!$admin) {
+                throw new \Exception('Data admin tidak ditemukan');
+            }
+            
+            Log::info("Assigning chat to admin: {$admin->nama_admin} (ID: {$admin->id_admin})");
             
             // Get jasa details for welcome message
             $jasa = Jasa::find($pesanan->id_jasa);
@@ -864,7 +1248,7 @@ class ChatController extends Controller
             $chat = new Chat();
             $chat->uuid = Str::uuid();
             $chat->user_id = $userId;
-            $chat->admin_id = $adminId;
+            $chat->admin_id = $admin->id_admin; // Pastikan menggunakan id_admin yang benar
             $chat->pesanan_uuid = $pesananUuid;
             $chat->last_message = 'Chat dibuat';
             $chat->unread_count = 0;
@@ -874,7 +1258,7 @@ class ChatController extends Controller
             $welcomeMessage = new ChatMessage();
             $welcomeMessage->uuid = Str::uuid();
             $welcomeMessage->chat_uuid = $chat->uuid;
-            $welcomeMessage->sender_id = $adminId;
+            $welcomeMessage->sender_id = $adminAuth->id_auth; // Gunakan id_auth untuk sender_id
             $welcomeMessage->sender_type = 'admin';
             
             $kategoriJasa = $jasa ? ucfirst($jasa->kategori) : 'Jasa';
@@ -889,7 +1273,7 @@ class ChatController extends Controller
             $instructionMessage = new ChatMessage();
             $instructionMessage->uuid = Str::uuid();
             $instructionMessage->chat_uuid = $chat->uuid;
-            $instructionMessage->sender_id = $adminId;
+            $instructionMessage->sender_id = $adminAuth->id_auth; // Gunakan id_auth untuk sender_id
             $instructionMessage->sender_type = 'admin';
             $instructionMessage->message = "Silahkan sampaikan kebutuhan atau pertanyaan Anda terkait pesanan ini. Kami akan membantu sebaik mungkin.";
             $instructionMessage->message_type = 'text';
@@ -899,6 +1283,8 @@ class ChatController extends Controller
             // Update chat's last message
             $chat->last_message = $welcomeMessage->message;
             $chat->save();
+            
+            Log::info("Chat created successfully with UUID: {$chat->uuid}");
             
             DB::commit();
             return $chat;
@@ -1145,6 +1531,140 @@ class ChatController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to send notification: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Sync message from Firestore to Laravel Database
+     */
+    public function syncMessage(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'chat_uuid' => 'required|string',
+                'message' => 'required|string',
+                'sender_type' => 'required|in:user,admin',
+                'message_type' => 'sometimes|in:text,image,file',
+                'file_url' => 'nullable|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $validator->errors()->first()
+                ], 400);
+            }
+
+            $userId = Auth::id();
+            $user = User::where('id_auth', $userId)->first();
+            
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak ditemukan'
+                ], 404);
+            }
+
+            // Cek apakah chat exists
+            $chat = Chat::where('uuid', $request->chat_uuid)->first();
+            
+            if (!$chat) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Chat tidak ditemukan'
+                ], 404);
+            }
+
+            // Simpan message ke database Laravel
+            $chatMessage = new ChatMessage();
+            $chatMessage->uuid = Str::uuid();
+            $chatMessage->chat_uuid = $request->chat_uuid;
+            $chatMessage->sender_id = $user->id_user; // Gunakan id_user bukan id_auth
+            $chatMessage->sender_type = $request->sender_type;
+            $chatMessage->message = $request->message;
+            $chatMessage->message_type = $request->message_type ?? 'text';
+            $chatMessage->file_url = $request->file_url;
+            $chatMessage->is_read = false;
+            $chatMessage->save();
+
+            // Update chat's last message
+            $chat->last_message = substr($request->message, 0, 50);
+            $chat->unread_count = ($chat->unread_count ?? 0) + 1;
+            $chat->updated_at = now();
+            $chat->save();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Message synced successfully',
+                'data' => $chatMessage
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error syncing message: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to sync message: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Debug method to see exact response structure
+     */
+    public function debugChatList(Request $request)
+    {
+        try {
+            $userId = Auth::id();
+            $user = User::where('id_auth', $userId)->first();
+            
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak ditemukan'
+                ], 404);
+            }
+            
+            $chats = Chat::with(['admin', 'pesanan'])
+                    ->where('user_id', $user->id_user)
+                    ->orderBy('updated_at', 'desc')
+                    ->get();
+            
+            // ✅ DEBUG: Show exact data types
+            $debugChats = $chats->map(function($chat) {
+                return [
+                    'id' => $chat->id,
+                    'id_type' => gettype($chat->id),
+                    'uuid' => $chat->uuid,
+                    'user_id' => $chat->user_id,
+                    'user_id_type' => gettype($chat->user_id),
+                    'admin_id' => $chat->admin_id,
+                    'admin_id_type' => gettype($chat->admin_id),
+                    'pesanan_uuid' => $chat->pesanan_uuid,
+                    'last_message' => $chat->last_message,
+                    'unread_count' => $chat->unread_count,
+                    'unread_count_type' => gettype($chat->unread_count),
+                    'created_at' => $chat->created_at,
+                    'updated_at' => $chat->updated_at,
+                    'raw_data' => $chat->toArray()
+                ];
+            });
+            
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Debug chat list',
+                'data' => $debugChats,
+                'user_info' => [
+                    'id_auth' => $userId,
+                    'id_user' => $user->id_user,
+                    'nama_user' => $user->nama_user
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Debug error: ' . $e->getMessage()
             ], 500);
         }
     }

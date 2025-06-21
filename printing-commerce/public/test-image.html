@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Image Proxy Test</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 20px;
+            }
+            .container {
+                max-width: 800px;
+                margin: 0 auto;
+            }
+            .test-case {
+                margin: 20px 0;
+                padding: 10px;
+                border: 1px solid #ddd;
+            }
+            img {
+                max-width: 100%;
+            }
+            pre {
+                background: #f5f5f5;
+                padding: 10px;
+                overflow: auto;
+            }
+            .error {
+                color: red;
+            }
+            .success {
+                color: green;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Image Proxy Test</h1>
+
+            <div class="test-case">
+                <h2>Test 1: Direct Storage URL</h2>
+                <p>
+                    URL:
+                    <code id="url1"
+                        >http://localhost:8000/storage/chat_files/4fdf524d-cdc7-4695-971f-4fc5f3fe3cd2.png</code
+                    >
+                </p>
+                <div>
+                    <img
+                        id="img1"
+                        src="http://localhost:8000/storage/chat_files/4fdf524d-cdc7-4695-971f-4fc5f3fe3cd2.png"
+                        alt="Test image"
+                    />
+                </div>
+                <div id="result1"></div>
+            </div>
+
+            <div class="test-case">
+                <h2>Test 2: Image Proxy URL</h2>
+                <p>
+                    URL:
+                    <code id="url2"
+                        >http://localhost:8000/image-proxy.php?type=chat&file=4fdf524d-cdc7-4695-971f-4fc5f3fe3cd2.png</code
+                    >
+                </p>
+                <div>
+                    <img
+                        id="img2"
+                        src="http://localhost:8000/image-proxy.php?type=chat&file=4fdf524d-cdc7-4695-971f-4fc5f3fe3cd2.png"
+                        alt="Test image"
+                    />
+                </div>
+                <div id="result2"></div>
+            </div>
+
+            <div class="test-case">
+                <h2>Test 3: .htaccess Redirect Test</h2>
+                <p>
+                    URL:
+                    <code id="url3"
+                        >http://localhost:8000/storage/chat_files/4fdf524d-cdc7-4695-971f-4fc5f3fe3cd2.png?test=redirect</code
+                    >
+                </p>
+                <div>
+                    <img
+                        id="img3"
+                        src="http://localhost:8000/storage/chat_files/4fdf524d-cdc7-4695-971f-4fc5f3fe3cd2.png?test=redirect"
+                        alt="Test image"
+                    />
+                </div>
+                <div id="result3"></div>
+            </div>
+
+            <div class="test-case">
+                <h2>Test 4: Manual URL Fix</h2>
+                <button id="fixButton">Fix and Load Image</button>
+                <div id="manualFix"></div>
+                <div id="result4"></div>
+            </div>
+        </div>
+
+        <script>
+            // Error handling for images
+            function handleImageLoad(img, resultId) {
+                img.onload = function () {
+                    document.getElementById(resultId).innerHTML =
+                        '<p class="success">✅ Image loaded successfully!</p>';
+                };
+
+                img.onerror = function () {
+                    document.getElementById(resultId).innerHTML =
+                        '<p class="error">❌ Failed to load image</p>';
+                };
+            }
+
+            // Test cases
+            handleImageLoad(document.getElementById("img1"), "result1");
+            handleImageLoad(document.getElementById("img2"), "result2");
+            handleImageLoad(document.getElementById("img3"), "result3");
+
+            // Manual fix test
+            document
+                .getElementById("fixButton")
+                .addEventListener("click", function () {
+                    const originalUrl =
+                        "http://localhost:8000/storage/chat_files/4fdf524d-cdc7-4695-971f-4fc5f3fe3cd2.png";
+                    const fileName = originalUrl.split("/").pop();
+                    const fixedUrl =
+                        "http://localhost:8000/image-proxy.php?type=chat&file=" +
+                        fileName;
+
+                    const container = document.getElementById("manualFix");
+                    container.innerHTML = `
+                <p>Original URL: <code>${originalUrl}</code></p>
+                <p>Fixed URL: <code>${fixedUrl}</code></p>
+                <img id="img4" src="${fixedUrl}" alt="Fixed image">
+            `;
+
+                    handleImageLoad(document.getElementById("img4"), "result4");
+                });
+        </script>
+    </body>
+</html>

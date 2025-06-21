@@ -62,23 +62,50 @@ class _ProfileScreenState extends State<Akunpage> {
 
   Future<void> fetchUserProfile() async {
     try {
-      final data = await UserPreferences.getUser();
-      print("ALLDATAA : $data");
+      final userData = await UserPreferences.getUser();
+      print("ALLDATAA : $userData");
       
-      if (data != null && data['user'] != null) {
-        print("tlpn : ${data['user']['no_telpon'] ?? 'tidak ada'}");
-        print("foto : ${data['user']['foto'] ?? 'tidak ada'}");
+      if (userData == null) {
+        print("User data is null");
+        setState(() {
+          isLoading = false;
+        });
+        return;
+      }
+
+      // Extract user data from various possible structures
+      Map<String, dynamic>? userInfo;
+      
+      if (userData.containsKey('data') && 
+          userData['data'] != null && 
+          userData['data'].containsKey('user') && 
+          userData['data']['user'] != null) {
+        userInfo = userData['data']['user'];
+        print("User data found in data.user structure");
+      } else if (userData.containsKey('user') && userData['user'] != null) {
+        userInfo = userData['user'];
+        print("User data found in user structure");
+      } else if (userData.containsKey('id') && 
+                 userData.containsKey('name') && 
+                 userData.containsKey('email')) {
+        userInfo = userData;
+        print("User data found directly in top level");
+      }
+      
+      if (userInfo != null) {
+        print("tlpn : ${userInfo['no_telpon'] ?? 'tidak ada'}");
+        print("foto : ${userInfo['foto'] ?? 'tidak ada'}");
         
         setState(() {
-          imageProfil = data['user']['foto'] ?? '';
-          nameController.text = data['user']['name'] ?? '';
-          emailController.text = data['user']['email'] ?? '';
-          addressController.text = data['user']['alamat'] ?? '';
-          phoneController.text = data['user']['no_telpon'] ?? '';
-          nameLama = data['user']['name'] ?? '';
-          emailLama = data['user']['email'] ?? '';
-          addressLama = data['user']['alamat'] ?? '';
-          phoneLama = data['user']['no_telpon'] ?? '';
+          imageProfil = userInfo!['foto'] ?? '';
+          nameController.text = userInfo!['name'] ?? '';
+          emailController.text = userInfo!['email'] ?? '';
+          addressController.text = userInfo!['alamat'] ?? '';
+          phoneController.text = userInfo!['no_telpon'] ?? '';
+          nameLama = userInfo!['name'] ?? '';
+          emailLama = userInfo!['email'] ?? '';
+          addressLama = userInfo!['alamat'] ?? '';
+          phoneLama = userInfo!['no_telpon'] ?? '';
           isLoading = false;
         });
       } else {
@@ -100,9 +127,40 @@ class _ProfileScreenState extends State<Akunpage> {
       isLoading = true;
     });
     
-    final ALLDATAUSER = await UserPreferences.getUser();
-    final token = ALLDATAUSER!['access_token'];
-    final url = Server.urlLaravel('users/profile/update');
+    final userData = await UserPreferences.getUser();
+    if (userData == null) {
+      setState(() {
+        isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Tidak dapat mengakses data user untuk update profil')),
+      );
+      return;
+    }
+    
+    // Extract token from different possible structures
+    String? token;
+    if (userData.containsKey('access_token')) {
+      token = userData['access_token'];
+    } else if (userData.containsKey('data') && 
+               userData['data'] != null && 
+               userData['data'].containsKey('access_token')) {
+      token = userData['data']['access_token'];
+    }
+    
+    if (token == null) {
+      setState(() {
+        isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Token tidak ditemukan, silakan login kembali')),
+      );
+      return;
+    }
+    
+    // Fix: Use the correct endpoint URL for profile update
+    // Based on the backend routes, user/profile/update is the correct endpoint
+    final url = Server.urlLaravel('user/profile/update');
 
     try {
       print('Memulai update profil...');
@@ -506,19 +564,31 @@ class _ProfileScreenState extends State<Akunpage> {
                               if (userData != null) {
                                 final fcmToken = await UserPreferences.getFcmToken();
                                 if (fcmToken != null) {
-                                  // Kirim permintaan untuk menghapus token
                                   try {
-                                    await http.post(
-                                      Server.urlLaravel('api/users/logout'),
-                                      headers: {
-                                        'Content-Type': 'application/json',
-                                        'Accept': 'application/json',
-                                        'Authorization': 'Bearer ${userData['access_token']}',
-                                      },
-                                      body: jsonEncode({
-                                        'fcm_token': fcmToken
-                                      }),
-                                    );
+                                    // Extract token from different possible structures
+                                    String? authToken;
+                                    if (userData.containsKey('access_token')) {
+                                      authToken = userData['access_token'];
+                                    } else if (userData.containsKey('data') && 
+                                              userData['data'] != null && 
+                                              userData['data'].containsKey('access_token')) {
+                                      authToken = userData['data']['access_token'];
+                                    }
+                                    
+                                    if (authToken != null) {
+                                      // Kirim permintaan untuk menghapus token
+                                      await http.post(
+                                        Server.urlLaravel('api/users/logout'),
+                                        headers: {
+                                          'Content-Type': 'application/json',
+                                          'Accept': 'application/json',
+                                          'Authorization': 'Bearer $authToken',
+                                        },
+                                        body: jsonEncode({
+                                          'fcm_token': fcmToken
+                                        }),
+                                      );
+                                    }
                                   } catch (e) {
                                     print('Error menghapus FCM token dari server: $e');
                                   }

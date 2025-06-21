@@ -81,17 +81,17 @@ Route::group(['middleware'=>['auth:sanctum','authorize']], function(){
 
     //API only chat route
     Route::group(['prefix'=>'/chat'], function(){
-        //page chat
-        Route::get('/',[ShowChatController::class,'showAll']);
-        Route::get('/{uuid}', [ShowChatController::class, 'showDetail']);
-        
-        // API routes for chat
+        // PERBAIKAN: Pindahkan API routes ke ATAS sebelum route dengan parameter
         Route::get('/chats', [ShowChatController::class, 'getChats']);
         Route::get('/messages', [ShowChatController::class, 'getMessages']);
         Route::post('/send', [ShowChatController::class, 'sendMessage']);
         Route::post('/mark-read', [ShowChatController::class, 'markAsRead']);
         Route::post('/upload', [ShowChatController::class, 'uploadFile']);
         Route::post('/assign', [ShowChatController::class, 'assignChatToAdmin']);
+        
+        // Page routes di bawah
+        Route::get('/',[ShowChatController::class,'showAll']);
+        Route::get('/{uuid}', [ShowChatController::class, 'showDetail']);
     });
 
     //API only user management route
@@ -213,4 +213,41 @@ Route::group(['middleware' => 'admin.guest'], function(){
 // Test route to check if routing is working
 Route::get('/test-route', function() {
     return 'Test route is working!';
+});
+
+// Tambahkan route ini untuk debugging (hapus setelah selesai)
+Route::get('/debug-session', function(Request $request) {
+    return response()->json([
+        'user' => $request->user(),
+        'session' => $request->session()->all(),
+        'auth_check' => Auth::check(),
+        'auth_user' => Auth::user(),
+    ]);
+})->middleware(['auth:sanctum', 'authorize']);
+
+// Debug route for storage files
+Route::get('/debug/storage/{filename}', function($filename) {
+    $path = storage_path('app/public/chat_files/' . $filename);
+    
+    return response()->json([
+        'file_exists' => file_exists($path),
+        'path' => $path,
+        'url' => url('storage/chat_files/' . $filename),
+        'symlink_exists' => is_link(public_path('storage')),
+        'symlink_target' => readlink(public_path('storage'))
+    ]);
+});
+
+// Test route for image proxy
+Route::get('/test-image-proxy/{filename}', function($filename) {
+    $path = storage_path('app/public/chat_files/' . $filename);
+    $proxyUrl = url('image-proxy.php?type=chat&file=' . $filename);
+    
+    return view('test-image-proxy', [
+        'filename' => $filename,
+        'file_exists' => file_exists($path),
+        'path' => $path,
+        'proxy_url' => $proxyUrl,
+        'direct_url' => url('storage/chat_files/' . $filename)
+    ]);
 });

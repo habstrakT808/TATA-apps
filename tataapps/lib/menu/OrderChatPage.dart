@@ -92,7 +92,7 @@ class _OrderChatPageState extends State<OrderChatPage> {
       
       if (result != null && result['status'] == 'success' && result['data'] != null) {
         setState(() {
-          chatId = result['data']['uuid'];
+          chatId = result['data']['chat_id'] ?? result['data']['uuid'];
         });
         
         // Sekarang ambil pesan-pesan

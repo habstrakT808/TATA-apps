@@ -160,15 +160,33 @@ class ChatModel {
       return DateTime.now();
     }
 
+    String parseToString(dynamic value) {
+      if (value == null) return '';
+      return value.toString();
+    }
+
+    int parseToInt(dynamic value) {
+      if (value == null) return 0;
+      if (value is int) return value;
+      if (value is String) {
+        try {
+          return int.parse(value);
+        } catch (e) {
+          return 0;
+        }
+      }
+      return 0;
+    }
+
     return ChatModel(
-      id: json['uuid'] ?? json['id'] ?? '',
-      userId: json['user_id'] ?? '',
-      adminId: json['admin_id'] ?? '',
-      orderReference: json['pesanan_uuid'] ?? json['order_reference'],
+      id: parseToString(json['uuid'] ?? json['id']),
+      userId: parseToString(json['user_id']),
+      adminId: parseToString(json['admin_id']),
+      orderReference: json['pesanan_uuid']?.toString() ?? json['order_reference']?.toString(),
       createdAt: parseDateTime(json['created_at']),
       updatedAt: parseDateTime(json['updated_at']),
-      lastMessage: json['last_message'] ?? '',
-      unreadCount: json['unread_count'] ?? 0,
+      lastMessage: json['last_message']?.toString() ?? '',
+      unreadCount: parseToInt(json['unread_count']),
     );
   }
   

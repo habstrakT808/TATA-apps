@@ -11,6 +11,7 @@ use App\Models\ChatMessage;
 use App\Models\User;
 use App\Models\Pesanan;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class ChatController extends Controller
 {
@@ -32,36 +33,66 @@ class ChatController extends Controller
     public function getChats(Request $request)
     {
         try {
-            $adminId = $request->user()->id_admin ?? null;
+            // PERBAIKAN: Ambil admin berdasarkan session auth
+            $authUser = $request->user();
             
-            if (!$adminId) {
+            if (!$authUser) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Admin ID tidak ditemukan'
-                ], 400);
+                    'message' => 'User tidak terautentikasi'
+                ], 401);
             }
             
-            // Get chats assigned to this admin or chats without admin (for admin_chat role)
-            $query = Chat::with(['user', 'pesanan'])
-                ->where(function ($q) use ($adminId) {
-                    $q->where('admin_id', $adminId)
-                      ->orWhereNull('admin_id');
-                })
-                ->orderBy('updated_at', 'desc');
-                
-            if ($request->user()->role === 'admin_chat') {
-                // For chat admins, show all chats
-                $chats = $query->get();
-            } else {
-                // For others, only show assigned chats
-                $chats = $query->where('admin_id', $adminId)->get();
+            Log::info("Auth user data: " . json_encode($authUser));
+            
+            // Cari admin berdasarkan id_auth dari session
+            $admin = Admin::where('id_auth', $authUser['id_auth'])->first();
+            
+            if (!$admin) {
+                Log::error("Admin not found for id_auth: " . $authUser['id_auth']);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data admin tidak ditemukan'
+                ], 404);
             }
+            
+            Log::info("Admin {$admin->nama_admin} (ID: {$admin->id_admin}) requesting chats");
+            
+            // Get chats assigned to this admin
+            $chats = Chat::with(['user', 'pesanan'])
+                ->where('admin_id', $admin->id_admin)
+                ->orderBy('updated_at', 'desc')
+                ->get();
+                
+            Log::info("Found " . $chats->count() . " chats for admin {$admin->id_admin}");
+            
+            // Transform data untuk frontend
+            $transformedChats = $chats->map(function($chat) {
+                return [
+                    'uuid' => $chat->uuid,
+                    'user' => [
+                        'id_user' => $chat->user_id,
+                        'nama_user' => $chat->user->nama_user ?? 'Unknown User',
+                        'profile_picture' => $chat->user->profile_picture ?? null,
+                    ],
+                    'pesanan' => $chat->pesanan ? [
+                        'id_pesanan' => $chat->pesanan->id_pesanan,
+                        'uuid' => $chat->pesanan->uuid,
+                    ] : null,
+                    'last_message' => $chat->last_message,
+                    'updated_at' => $chat->updated_at,
+                    'unread_count' => $chat->unread_count ?? 0,
+                ];
+            });
             
             return response()->json([
                 'success' => true,
-                'data' => $chats
+                'data' => $transformedChats
             ]);
+            
         } catch (\Exception $e) {
+            Log::error('Error getting chats: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal memuat daftar chat: ' . $e->getMessage()
@@ -107,14 +138,25 @@ class ChatController extends Controller
                 'file_url' => 'nullable|string',
             ]);
             
-            $adminId = $request->user()->id_admin ?? null;
-            $adminAuthId = $request->user()->id_auth ?? null;
+            // PERBAIKAN: Ambil admin dari session yang benar
+            $authUser = $request->user();
             
-            if (!$adminId || !$adminAuthId) {
+            if (!$authUser) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Admin ID tidak ditemukan'
-                ], 400);
+                    'message' => 'User tidak terautentikasi'
+                ], 401);
+            }
+            
+            // Cari admin berdasarkan id_auth dari session
+            $admin = Admin::where('id_auth', $authUser['id_auth'])->first();
+            
+            if (!$admin) {
+                Log::error("Admin not found for id_auth: " . $authUser['id_auth']);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data admin tidak ditemukan'
+                ], 404);
             }
             
             $chat = Chat::where('uuid', $request->chat_uuid)->first();
@@ -128,15 +170,15 @@ class ChatController extends Controller
             
             // If chat doesn't have admin assigned, assign this admin
             if (!$chat->admin_id) {
-                $chat->admin_id = $adminId;
+                $chat->admin_id = $admin->id_admin;
                 $chat->save();
             }
             
-            // Create message
+            // Create message - PERBAIKAN: gunakan id_auth untuk sender_id
             $message = new ChatMessage();
             $message->uuid = Str::uuid();
             $message->chat_uuid = $request->chat_uuid;
-            $message->sender_id = $adminAuthId;
+            $message->sender_id = $authUser['id_auth']; // ← PERBAIKAN: gunakan id_auth
             $message->sender_type = 'admin';
             $message->message = $request->message;
             $message->message_type = $request->message_type;
@@ -149,11 +191,14 @@ class ChatController extends Controller
             $chat->updated_at = now();
             $chat->save();
             
+            Log::info("Message sent by admin {$admin->nama_admin} to chat {$chat->uuid}");
+            
             return response()->json([
                 'success' => true,
                 'data' => $message
             ]);
         } catch (\Exception $e) {
+            Log::error('Error sending message: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal mengirim pesan: ' . $e->getMessage()
