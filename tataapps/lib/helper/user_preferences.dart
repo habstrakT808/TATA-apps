@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:TATA/sendApi/tokenJWT.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:math' as Math;
+import 'package:http/http.dart' as http;
+import 'package:TATA/sendApi/Server.dart';
 
 class UserPreferences {
   static const String _userKey = 'user_data';
@@ -32,13 +34,48 @@ class UserPreferences {
 
   static Future<void> saveUser(Map<String, dynamic> userData) async {
     final prefs = _preferences ?? await SharedPreferences.getInstance();
-    final userJson = jsonEncode(userData);
-    await prefs.setString(_userKey, userJson);
     
-    // Extract and save token
-    String? token = _extractTokenFromUserData(userData);
-    if (token != null) {
-      await saveToken(token);
+    try {
+      // Normalisasi struktur data sebelum menyimpan
+      Map<String, dynamic> normalizedData = {};
+      
+      // Log untuk debug
+      debugPrint('Saving user data with keys: ${userData.keys.join(', ')}');
+      
+      // Cek struktur data
+      if (userData.containsKey('data') && userData['data'] != null) {
+        // Format: { data: { ... } }
+        normalizedData = {'data': userData['data']};
+        debugPrint('Using data structure format');
+      } else {
+        // Format lainnya, simpan apa adanya
+        normalizedData = userData;
+        debugPrint('Using direct data format');
+      }
+      
+      // Encode dan simpan
+      final userJson = jsonEncode(normalizedData);
+      await prefs.setString(_userKey, userJson);
+      debugPrint('User data saved successfully');
+      
+      // Extract and save token
+      String? token = _extractTokenFromUserData(userData);
+      if (token != null) {
+        await saveToken(token);
+        debugPrint('Token extracted and saved');
+      } else {
+        debugPrint('No token found in user data');
+      }
+    } catch (e) {
+      debugPrint('Error saving user data: $e');
+      // Fallback: coba simpan data asli
+      try {
+        final userJson = jsonEncode(userData);
+        await prefs.setString(_userKey, userJson);
+        debugPrint('User data saved using fallback method');
+      } catch (e) {
+        debugPrint('Failed to save user data even with fallback: $e');
+      }
     }
   }
 
@@ -69,7 +106,26 @@ class UserPreferences {
     if (userJson != null) {
       try {
         final decoded = jsonDecode(userJson);
-        debugPrint('UserPreferences.getUser() returning: $decoded');
+        debugPrint('UserPreferences.getUser() returning data with keys: ${(decoded as Map<String, dynamic>).keys.join(', ')}');
+        
+        // Cek apakah struktur data valid
+        if (decoded is Map<String, dynamic>) {
+          // Cek apakah ada data user
+          bool hasUserData = false;
+          
+          if (decoded.containsKey('data') && decoded['data'] != null) {
+            if (decoded['data'] is Map && decoded['data'].containsKey('user')) {
+              hasUserData = true;
+            }
+          } else if (decoded.containsKey('user') && decoded['user'] != null) {
+            hasUserData = true;
+          }
+          
+          if (!hasUserData) {
+            debugPrint('PERINGATAN: Data user tidak ditemukan dalam format yang diharapkan');
+          }
+        }
+        
         return decoded;
       } catch (e) {
         debugPrint('Error decoding user data: $e');
@@ -88,6 +144,9 @@ class UserPreferences {
     String formattedToken = token;
     if (!token.startsWith('Bearer ')) {
       formattedToken = 'Bearer $token';
+    } else if (token.startsWith('Bearer Bearer')) {
+      // Fix double Bearer issue
+      formattedToken = 'Bearer ' + token.substring('Bearer Bearer '.length);
     }
     
     await prefs.setString(_tokenKey, formattedToken);
@@ -108,10 +167,16 @@ class UserPreferences {
       if (directToken != null && directToken.isNotEmpty) {
         debugPrint('Retrieved token from preferences: ${directToken.substring(0, Math.min(20, directToken.length))}...');
         // Format token sesuai kebutuhan Laravel Sanctum
+        String formattedToken = directToken;
         if (!directToken.startsWith('Bearer ')) {
-          return 'Bearer $directToken';
+          formattedToken = 'Bearer $directToken';
+        } else if (directToken.startsWith('Bearer Bearer')) {
+          // Fix double Bearer issue
+          formattedToken = 'Bearer ' + directToken.substring('Bearer Bearer '.length);
+          // Save the corrected token
+          await saveToken(formattedToken);
         }
-        return directToken;
+        return formattedToken;
       }
       
       // Jika tidak ada, coba ambil dari data user
@@ -126,6 +191,9 @@ class UserPreferences {
           // Format token sesuai kebutuhan Laravel Sanctum
           if (!token.startsWith('Bearer ')) {
             token = 'Bearer $token';
+          } else if (token.startsWith('Bearer Bearer')) {
+            // Fix double Bearer issue
+            token = 'Bearer ' + token.substring('Bearer Bearer '.length);
           }
           debugPrint('Retrieved token from user data: ${token.substring(0, Math.min(20, token.length))}...');
           return token;
@@ -142,6 +210,56 @@ class UserPreferences {
       return tokenJwt;
     } catch (e) {
       debugPrint('Error getting token: $e');
+      return null;
+    }
+  }
+  
+  // Fungsi untuk refresh token
+  static Future<String?> refreshToken() async {
+    try {
+      final currentToken = await getToken();
+      if (currentToken == null) {
+        debugPrint('No token to refresh');
+        return null;
+      }
+      
+      debugPrint('Attempting to refresh token: ${currentToken.substring(0, Math.min(20, currentToken.length))}...');
+      
+      // Panggil endpoint refresh token
+      final response = await http.post(
+        Server.urlLaravel('mobile/users/refresh-token'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': currentToken
+        }
+      );
+      
+      debugPrint('Refresh token response status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['status'] == 'success' && responseData['data'] != null && 
+            responseData['data']['access_token'] != null) {
+          final newToken = responseData['data']['access_token'];
+          await saveToken(newToken);
+          debugPrint('Token refreshed successfully: ${newToken.substring(0, Math.min(20, newToken.length as int))}...');
+          return 'Bearer $newToken';
+        } else {
+          debugPrint('Invalid refresh token response: ${response.body}');
+        }
+      } else if (response.statusCode == 401) {
+        // Token tidak valid, mungkin perlu login ulang
+        debugPrint('Token invalid (401), user may need to login again');
+        // Hapus token yang tidak valid
+        await clearToken();
+      } else {
+        debugPrint('Failed to refresh token: ${response.statusCode}, ${response.body}');
+      }
+      
+      return null; // Return null jika refresh gagal
+    } catch (e) {
+      debugPrint('Error refreshing token: $e');
       return null;
     }
   }

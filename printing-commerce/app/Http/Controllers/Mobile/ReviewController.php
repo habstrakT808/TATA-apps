@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ReviewController extends Controller
 {
@@ -50,6 +51,13 @@ class ReviewController extends Controller
 public function addReviewByUUID(Request $request)
 {
     try {
+        // Log request untuk debugging
+        Log::info('Review request received', [
+            'uuid' => $request->uuid,
+            'auth_user_id' => $request->user() ? $request->user()->id_auth : 'not authenticated',
+            'headers' => $request->headers->all()
+        ]);
+
         // Validasi input
         $validator = Validator::make($request->all(), [
             'uuid'   => 'required|exists:pesanan,uuid',
@@ -58,6 +66,10 @@ public function addReviewByUUID(Request $request)
         ]);
 
         if ($validator->fails()) {
+            Log::warning('Review validation failed', [
+                'errors' => $validator->errors()->toArray()
+            ]);
+            
             return response()->json([
                 'status'  => 'error',
                 'message' => 'Validasi gagal',
@@ -65,28 +77,85 @@ public function addReviewByUUID(Request $request)
             ], 422);
         }
 
+        // Cek apakah user terotentikasi
+        if (!$request->user()) {
+            Log::error('User not authenticated for review submission');
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'User tidak terotentikasi',
+            ], 401);
+        }
+
+        // Ambil data user dari auth
+        $authUser = $request->user();
+        Log::info('Auth user found', [
+            'id_auth' => $authUser->id_auth,
+            'email' => $authUser->email
+        ]);
+        
+        // Cari user_id dari id_auth
+        $user = User::where('id_auth', $authUser->id_auth)->first();
+        if (!$user) {
+            Log::error('User not found in users table', [
+                'id_auth' => $authUser->id_auth
+            ]);
+            
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'User tidak ditemukan',
+            ], 404);
+        }
+        
+        Log::info('User found', [
+            'id_user' => $user->id_user,
+            'nama_user' => $user->nama_user
+        ]);
+
         // Cari pesanan berdasarkan UUID dan user login
         $pesanan = Pesanan::where('uuid', $request->uuid)
-            ->where('id_user', User::select('id_user')->where('id_auth', $request->user()->id_auth)->first()->id_user)->first();
+            ->where('id_user', $user->id_user)->first();
 
         if (!$pesanan) {
+            Log::warning('Order not found or does not belong to user', [
+                'uuid' => $request->uuid,
+                'user_id' => $user->id_user
+            ]);
+            
             return response()->json([
                 'status'  => 'error',
                 'message' => 'Pesanan tidak ditemukan atau tidak sesuai user',
             ], 404);
         }
+        
+        Log::info('Order found', [
+            'id_pesanan' => $pesanan->id_pesanan,
+            'status_pesanan' => $pesanan->status_pesanan,
+            'status_pengerjaan' => $pesanan->status_pengerjaan,
+            'client_confirmed_at' => $pesanan->client_confirmed_at
+        ]);
 
-        // Optional: Cek apakah pesanan sudah selesai (jika perlu)
-        if ($pesanan->status_pesanan !== 'selesai') {
+        // ✅ PERBAIKI VALIDASI STATUS - Cek apakah client sudah konfirmasi selesai
+        if (!$pesanan->client_confirmed_at) {
+            Log::warning('Order not confirmed by client yet', [
+                'id_pesanan' => $pesanan->id_pesanan,
+                'status_pesanan' => $pesanan->status_pesanan,
+                'status_pengerjaan' => $pesanan->status_pengerjaan,
+                'client_confirmed_at' => $pesanan->client_confirmed_at
+            ]);
+            
             return response()->json([
                 'status'  => 'error',
-                'message' => 'Hanya pesanan yang sudah selesai dapat direview',
+                'message' => 'Pesanan belum dikonfirmasi selesai oleh Anda',
             ], 403);
         }
 
         // Cek apakah sudah pernah direview
         $existingReview = Review::where('id_pesanan', $pesanan->id_pesanan)->first();
         if ($existingReview) {
+            Log::info('Review already exists', [
+                'id_review' => $existingReview->id_review
+            ]);
+            
             return response()->json([
                 'status'  => 'error',
                 'message' => 'Review untuk pesanan ini sudah ada',
@@ -105,6 +174,11 @@ public function addReviewByUUID(Request $request)
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        
+        Log::info('Review created successfully', [
+            'id_review' => $review->id_review,
+            'id_pesanan' => $review->id_pesanan
+        ]);
 
         return response()->json([
             'status'  => 'success',
@@ -113,6 +187,11 @@ public function addReviewByUUID(Request $request)
         ], 200);
 
     } catch (\Exception $e) {
+        Log::error('Error in addReviewByUUID: ' . $e->getMessage(), [
+            'exception' => get_class($e),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
         return response()->json([
             'status'  => 'error',
             'message' => 'Terjadi kesalahan saat menambahkan review',
@@ -234,23 +313,36 @@ public function getReviews()
         ->join('jasa', 'pesanan.id_jasa', '=', 'jasa.id_jasa')
         ->join('paket_jasa', 'pesanan.id_paket_jasa', '=', 'paket_jasa.id_paket_jasa')
         ->select(
+            'review.id_review as id',
             'users.nama_user as name',
             DB::raw('CAST(review.rating AS UNSIGNED) as rating'),
             DB::raw("CONCAT(jasa.kategori, ', ', paket_jasa.nama_paket_jasa) as service"),
             'review.review as feedback',
-            'users.foto as avatar'
+            'users.foto as avatar',
+            'pesanan.uuid as order_uuid',
+            'pesanan.client_confirmed_at as completion_date',
+            'review.created_at as review_date'
         )
+        ->orderBy('review.created_at', 'desc')
         ->get()
         ->map(function ($item) {
             return [
+                'id' => $item->id,
                 'name' => $item->name,
-                'rating' =>(int) $item->rating,
+                'rating' => (int) $item->rating,
+                'service' => $item->service,
                 'feedback' => $item->feedback,
-                'avatar_url' => $item->avatar ? asset('storage/foto/' . $item->avatar) : null
+                'avatar_url' => $item->avatar ? asset('assets3/img/user/' . $item->avatar) : null,
+                'order_uuid' => $item->order_uuid,
+                'completion_date' => $item->completion_date ? Carbon::parse($item->completion_date)->format('d M Y') : null,
+                'review_date' => Carbon::parse($item->review_date)->format('d M Y')
             ];
         });
 
-    return response()->json($reviews);
+    return response()->json([
+        'status' => 'success',
+        'data' => $reviews
+    ]);
 }
     public function show($orderId)
     {
@@ -259,7 +351,6 @@ public function getReviews()
                 ->where('pesanan.uuid', $orderId)
                 ->where('pesanan.id_user', Auth::id())
                 ->select(
-                    
                     'review.*',
                     'pesanan.uuid as order_number',
                     'pesanan.deskripsi as order_description'

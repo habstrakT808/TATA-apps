@@ -28,6 +28,7 @@ class OVOPaymentPage extends StatefulWidget {
   final String? ukuran;
   final String? bahan;
   final int? jumlahCetak;
+  final String? paymentMethodUuid;
 
   const OVOPaymentPage({
     super.key,
@@ -44,6 +45,7 @@ class OVOPaymentPage extends StatefulWidget {
     this.ukuran,
     this.bahan,
     this.jumlahCetak,
+    this.paymentMethodUuid,
   });
 
   @override
@@ -87,7 +89,7 @@ class _OVOPaymentPageState extends State<OVOPaymentPage> {
     request.fields['id_paket_jasa'] = paketId;
     request.fields['catatan_user'] = widget.deskripsi;
     request.fields['maksimal_revisi'] = int.parse(revisiClean).toString();
-    request.fields['id_metode_pembayaran'] = "cdfb5c3d-3726-4d1e-b887-3a81a690aa2f";
+    request.fields['id_metode_pembayaran'] = widget.paymentMethodUuid ?? "6ada3c0a-8d4c-46f5-a651-48ef8d5cccf6";
 
     if (kIsWeb && widget.webImageBytes != null) {
       final image = http.MultipartFile.fromBytes(
@@ -157,7 +159,7 @@ class _OVOPaymentPageState extends State<OVOPaymentPage> {
               ukuran: widget.ukuran,
               bahan: widget.bahan,
               jumlahCetak: widget.jumlahCetak,
-              uuidmetodePembayaran: "cdfb5c3d-3726-4d1e-b887-3a81a690aa2f",
+              uuidmetodePembayaran: widget.paymentMethodUuid ?? "6ada3c0a-8d4c-46f5-a651-48ef8d5cccf6",
               metodePembayaran: "OVO",
             ),
           ),

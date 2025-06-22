@@ -30,7 +30,7 @@ Route::prefix('mobile')->group(function () {
     Route::post('users/check-email', [UserController::class, 'checkEmail']);
     Route::post('users/forgot-password', [UserController::class, 'forgotPassword']);
     Route::post('users/change-password', [UserController::class, 'changePassEmail']);
-    Route::post('users/refresh-token', [UserController::class, 'refreshToken']);
+    Route::post('users/verify-credentials', [UserController::class, 'verifyCredentials']);
     
     // Public jasa routes (PINDAHKAN KE SINI AGAR TIDAK PERLU AUTH)
     Route::get('jasa', [JasaController::class, 'showAll']);
@@ -60,6 +60,7 @@ Route::middleware('auth:sanctum')->group(function () { // HAPUS debug.auth middl
         Route::post('users/logout', [UserController::class, 'logout']);
         Route::post('users/logout-all', [UserController::class, 'logoutAll']);
         Route::post('users/update-fcm-token', [UserController::class, 'updateFCMToken']);
+        Route::post('users/refresh-token', [UserController::class, 'refreshToken']);
         
         // Review routes
         Route::get('users/review', [UserController::class, 'getUserReviews']);
@@ -74,10 +75,14 @@ Route::middleware('auth:sanctum')->group(function () { // HAPUS debug.auth middl
             Route::post('/create', [PesananController::class, 'create']);
             Route::post('/cancel', [PesananController::class, 'cancel']);
             Route::post('/download', [PesananController::class, 'downloadFiles']);
-            Route::post('/review/add-by-uuid', [ReviewController::class, 'addReviewByUUID']);
-            Route::get('/detail/{uuid}', [PesananController::class, 'getDetail']);
+            Route::post('/confirm-complete', [PesananController::class, 'confirmComplete']);
             
-            // ✅ TAMBAH ROUTE INI UNTUK ORDER INFO
+            // Pindahkan route review ke sini dan pastikan menggunakan middleware auth:sanctum
+            Route::post('/review/add-by-uuid', [ReviewController::class, 'addReviewByUUID']);
+            
+            Route::get('/detail/{uuid}', [PesananController::class, 'getDetail']);
+            Route::get('/url-dl/{uuid}', [PesananController::class, 'getURLDownload']);
+            
             Route::get('/order-info/{uuid}', [PesananController::class, 'getOrderInfo']);
         });
         

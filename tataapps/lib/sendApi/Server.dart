@@ -38,11 +38,32 @@ class Server {
     if (isDevelopment) {
       // Untuk web, gunakan image proxy untuk menghindari masalah CORS
       if (kIsWeb) {
-        return "http://localhost:8000/image-proxy.php?type=pesanan&uuid=$cleanUuid&file=$url";
+        try {
+          // Tambahkan timestamp untuk menghindari cache
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          
+          // Cek apakah ini adalah file hasil desain
+          final isHasilDesain = url.contains("jpg") || url.contains("jpeg") || url.contains("png") || url.contains("_");
+          final folderPath = isHasilDesain ? "hasil_desain" : "catatan_pesanan";
+          
+          return "http://localhost:8000/image-proxy.php?type=pesanan&uuid=$cleanUuid&file=$url&folder=$folderPath&t=$timestamp";
+        } catch (e) {
+          print("Error generating image URL: $e");
+          return "";
+        }
       }
-      return "http://localhost:8000/assets3/img/pesanan/$cleanUuid/catatan_pesanan/$url";
+      
+      // Cek apakah ini adalah file hasil desain
+      final isHasilDesain = url.contains("jpg") || url.contains("jpeg") || url.contains("png") || url.contains("_");
+      final folderPath = isHasilDesain ? "hasil_desain" : "catatan_pesanan";
+      
+      return "http://localhost:8000/assets3/img/pesanan/$cleanUuid/$folderPath/$url";
     } else {
-      return "https://tata-test.my.id/assets3/img/pesanan/$cleanUuid/catatan_pesanan/$url";
+      // Cek apakah ini adalah file hasil desain
+      final isHasilDesain = url.contains("jpg") || url.contains("jpeg") || url.contains("png") || url.contains("_");
+      final folderPath = isHasilDesain ? "hasil_desain" : "catatan_pesanan";
+      
+      return "https://tata-test.my.id/assets3/img/pesanan/$cleanUuid/$folderPath/$url";
     }
   }
 
@@ -54,14 +75,35 @@ class Server {
         return "assets/images/logotext.png"; // Gunakan gambar default
       }
       
+      // Cek apakah URL adalah URL eksternal (Google profil)
+      final isExternalUrl = url.startsWith('http://') || url.startsWith('https://');
+      
       // Gunakan proxy PHP untuk menghindari masalah CORS
       if (kIsWeb) {
+        if (isExternalUrl) {
+          // Untuk URL eksternal seperti Google photo, gunakan proxy dengan tipe external
+          return "http://localhost:8000/image-proxy.php?type=external&url=${Uri.encodeComponent(url)}";
+        }
         return "http://localhost:8000/image-proxy.php?type=user&file=$url";
       } else {
-        // Mobile tetap menggunakan URL langsung
+        // Mobile - jika eksternal URL, gunakan langsung
+        if (isExternalUrl) {
+          return url; // Gunakan langsung URL eksternal di mobile
+        }
+        // Mobile tetap menggunakan URL langsung untuk gambar lokal
         return "http://localhost:8000/assets3/img/user/$url";
       }
     } else {
+      // Production environment
+      // Cek apakah URL adalah URL eksternal (Google profil)
+      final isExternalUrl = url.startsWith('http://') || url.startsWith('https://');
+      if (isExternalUrl) {
+        if (kIsWeb) {
+          // Gunakan proxy untuk URL eksternal di web production
+          return "https://tata-test.my.id/image-proxy.php?type=external&url=${Uri.encodeComponent(url)}";
+        }
+        return url; // Gunakan URL eksternal langsung di mobile
+      }
       return "https://tata-test.my.id/assets3/img/user/$url";
     }
   }

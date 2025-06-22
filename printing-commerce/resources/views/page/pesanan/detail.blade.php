@@ -245,6 +245,294 @@ $tPath = app()->environment('local') ? '' : '';
             }
         }
     </style>
+    <script>
+        // Variabel global
+        const tPath = '{{ $tPath }}';
+        const csrfToken = '{{ csrf_token() }}';
+        let uploadedFile = null;
+        const allowedFormats = ['image/png', 'image/jpeg', 'image/jpg'];
+        
+        // Fungsi untuk membuka modal gambar
+        function openImageModal(imageSrc) {
+            if(imageSrc == '') {
+                return;
+            }
+            const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+            const modalImage = document.getElementById('modalImage');
+            const imageFileName = document.getElementById('imageFileName');
+            const downloadBtn = document.getElementById('downloadBtn');
+            
+            // Set image source
+            modalImage.src = imageSrc;
+            modalImage.onerror = function() {
+                this.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0yMDAgMTAwTDI4MCAyMDBIMTIwTDIwMCAxMDBaIiBmaWxsPSIjRENEQ0RDIi8+CjxjaXJjbGUgY3g9IjE2MCIgY3k9IjE0MCIgcj0iMTUiIGZpbGw9IiNEQ0RDREMiLz4KPHRleHQgeD0iMjAwIiB5PSIyNDAiIGZpbGw9IiM5OTk5OTkiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+R2FtYmFyIHRpZGFrIGRhcGF0IGRpdG11a2FuPC90ZXh0Pgo8L3N2Zz4K';
+                imageFileName.textContent = 'Gambar tidak dapat dimuat';
+                downloadBtn.style.display = 'none';
+            };
+            
+            // Set file name
+            const fileName = imageSrc.split('/').pop();
+            imageFileName.textContent = fileName;
+            
+            // Set download link
+            downloadBtn.href = imageSrc;
+            downloadBtn.download = fileName;
+            downloadBtn.style.display = 'inline-block';
+            
+            // Show modal
+            modal.show();
+        }
+        
+        // Fungsi untuk download gambar
+        function downloadImage(imageSrc, fileName) {
+            const link = document.createElement('a');
+            link.href = imageSrc;
+            link.download = fileName || 'gambar-referensi';
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        // Fungsi untuk menangani klik pada tombol upload
+        function handleFileClick() {
+            document.getElementById('input_hasil').click();
+        }
+        
+        // Fungsi untuk menangani perubahan file
+        function handleFileChange(event) {
+            const file = event.target.files[0];
+            if (file) {
+                if (!allowedFormats.includes(file.type)) {
+                    showRedPopup("Format file harus png, jpeg, atau jpg!");
+                    return;
+                }
+                uploadedFile = file;
+                
+                // Update UI immediately without uploading
+                updateHasilDesainUIPreview(file.name);
+            }
+        }
+        
+        // Fungsi untuk memperbarui UI preview hasil desain
+        function updateHasilDesainUIPreview(filename) {
+            // Get the preview button element
+            const previewButton = document.querySelector('.btn-outline-primary[onclick*="revisi_editor"]') || 
+                                  document.querySelector('.btn-outline-secondary');
+            
+            if (previewButton) {
+                // Update preview button text to show selected file
+                const fileExtension = filename.split('.').pop();
+                previewButton.innerHTML = `Gambar.${fileExtension}`;
+                
+                // Disable the onclick since file is not uploaded yet
+                previewButton.setAttribute('onclick', '');
+                previewButton.style.opacity = '0.7';
+                previewButton.title = 'File dipilih, belum diupload';
+            }
+        }
+        
+        // Fungsi untuk memperbarui UI hasil desain
+        function updateHasilDesainUI(filename, filePath) {
+            // Get the button element
+            const previewButton = document.querySelector('.btn-outline-primary[onclick*="revisi_editor"]') || 
+                                  document.querySelector('.btn-outline-secondary');
+            const uploadButton = document.querySelector('.btn-success[onclick="handleFileClick()"]');
+            
+            if (previewButton) {
+                // Update preview button after successful upload
+                const fileExtension = filename.split('.').pop();
+                previewButton.innerHTML = `Gambar.${fileExtension}`;
+                previewButton.setAttribute('onclick', `openImageModal('${filePath}')`);
+                previewButton.style.opacity = '1';
+                previewButton.title = 'Klik untuk melihat gambar';
+                previewButton.classList.remove('btn-outline-secondary');
+                previewButton.classList.add('btn-outline-primary');
+                
+                // Change upload button text to indicate file was uploaded
+                if (uploadButton) {
+                    uploadButton.innerHTML = 'Berhasil Diupload';
+                    uploadButton.classList.remove('btn-success');
+                    uploadButton.classList.add('btn-outline-success');
+                    
+                    // Reset after 3 seconds
+                    setTimeout(() => {
+                        uploadButton.innerHTML = 'Upload';
+                        uploadButton.classList.remove('btn-outline-success');
+                        uploadButton.classList.add('btn-success');
+                    }, 3000);
+                }
+            }
+        }
+        
+        // Fungsi untuk upload file dan menyimpan perubahan
+        function uploadFileAndSaveChanges() {
+            // Create FormData object for file upload
+            const formData = new FormData();
+            formData.append('gambar_hasil_desain', uploadedFile);
+            formData.append('id_pesanan', '{{ $pesananData['uuid'] }}');
+            formData.append('_token', csrfToken);
+            
+            // Upload file first
+            fetch('/pesanan/upload-hasil-desain', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // File uploaded successfully, now save status changes
+                    updateHasilDesainUI(data.filename, data.file_path);
+                    uploadedFile = null; // Clear the file
+                    saveStatusChanges();
+                } else {
+                    document.getElementById('preloader').style.display = 'none';
+                    showRedPopup(data.message || 'Gagal mengupload file');
+                }
+            })
+            .catch(error => {
+                document.getElementById('preloader').style.display = 'none';
+                console.error('Error:', error);
+                showRedPopup('Terjadi kesalahan saat mengupload file');
+            });
+        }
+        
+        // Fungsi untuk menyimpan perubahan status
+        function saveStatusChanges() {
+            const xhr = new XMLHttpRequest();
+            xhr.open('PUT', '/pesanan/update', true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
+            
+            // Prepare the data to send
+            const dataToSend = {
+                id_pesanan: '{{ $pesananData['uuid'] }}',
+                status_pengerjaan: document.getElementById('statusSelect').value,
+                editor_id: document.querySelector('select[name="editor_id"]').value,
+                estimasi_mulai: document.querySelector('input[name="estimasi_mulai"]').value,
+                estimasi_selesai: document.querySelector('input[name="estimasi_selesai"]').value,
+                maksimal_revisi: document.querySelector('input[name="maksimal_revisi"]').value
+            };
+            
+            console.log('Sending data:', dataToSend); // Debug log
+            
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    document.getElementById('preloader').style.display = 'none';
+                    
+                    if (xhr.status === 200) {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.status === 'success') {
+                            showGreenPopup(response.message);
+                            setTimeout(function() {
+                                window.location.reload(); // Reload the page to see changes
+                            }, 2000);
+                        } else {
+                            showRedPopup(response.message);
+                        }
+                    } else {
+                        showRedPopup('Terjadi kesalahan saat menyimpan');
+                        console.error('Error:', xhr.status, xhr.responseText); // Debug log
+                    }
+                }
+            };
+            
+            xhr.send(JSON.stringify(dataToSend));
+        }
+        
+        // Fungsi untuk menyimpan perubahan
+        function saveChanges() {
+            document.getElementById('preloader').style.display = 'block';
+            
+            // Check if there's a file selected to upload
+            if (uploadedFile) {
+                // Upload file first, then save other changes
+                uploadFileAndSaveChanges();
+            } else {
+                // No file selected, just save status changes
+                saveStatusChanges();
+            }
+        }
+        
+        // Fungsi untuk membatalkan perubahan
+        function cancelEdit() {
+            if (confirm('Apakah Anda yakin ingin membatalkan perubahan?')) {
+                window.location.reload(); // Reload the page to reset form
+            }
+        }
+        
+        // Fungsi popup
+        function showGreenPopup(message) {
+            const greenPopup = document.querySelector('#greenPopup');
+            if (greenPopup) {
+                greenPopup.innerHTML = `
+                    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1050;"></div>
+                    <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 10px; z-index: 1051; text-align: center;">
+                        <div style="color: green; font-size: 24px; margin-bottom: 10px;">✓</div>
+                        <div>${message}</div>
+                    </div>
+                `;
+                greenPopup.style.display = 'block';
+                setTimeout(() => {
+                    greenPopup.style.display = 'none';
+                    greenPopup.innerHTML = '';
+                }, 2000);
+            }
+        }
+        
+        function showRedPopup(message) {
+            const redPopup = document.querySelector('#redPopup');
+            if (redPopup) {
+                redPopup.innerHTML = `
+                    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1050;"></div>
+                    <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 10px; z-index: 1051; text-align: center;">
+                        <div style="color: red; font-size: 24px; margin-bottom: 10px;">✗</div>
+                        <div>${message}</div>
+                    </div>
+                `;
+                redPopup.style.display = 'block';
+                setTimeout(() => {
+                    redPopup.style.display = 'none';
+                    redPopup.innerHTML = '';
+                }, 2000);
+            }
+        }
+        
+        // Inisialisasi halaman
+        document.addEventListener('DOMContentLoaded', function() {
+            // Enable form fields that should be editable
+            const form = document.querySelector('form');
+            const inputs = form.querySelectorAll('input, select, textarea');
+            
+            // List of fields that should remain readonly
+            const readOnlyFields = ['id_pesanan', 'nama_pelanggan', 'jenis_jasa', 'kelas_jasa', 'deskripsi'];
+            
+            inputs.forEach(input => {
+                // Only enable fields that should be editable
+                if (!readOnlyFields.includes(input.name)) {
+                    input.removeAttribute('readonly');
+                    input.removeAttribute('disabled');
+                }
+            });
+            
+            // Handle image load errors on thumbnail
+            const thumbnails = document.querySelectorAll('.image-thumbnail img');
+            thumbnails.forEach(img => {
+                img.addEventListener('error', function() {
+                    this.style.border = '2px dashed #dc3545';
+                    this.title = 'Gambar tidak dapat dimuat';
+                });
+                
+                img.addEventListener('load', function() {
+                    this.style.border = '1px solid #dee2e6';
+                    this.title = 'Klik untuk melihat gambar ukuran penuh';
+                });
+            });
+        });
+    </script>
 </head>
 
 <body>
@@ -308,22 +596,54 @@ $tPath = app()->environment('local') ? '' : '';
                                 </div>
 
                                 <div class="row mb-3">
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="form-group">
                                             <label class="form-label">Jenis Jasa</label>
                                             <input type="text" name="jenis_jasa" class="form-control" value="{{ $pesananData['jenis_jasa'] }}" readonly>
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="form-group">
                                             <label class="form-label">Kelas Jasa</label>
                                             <input type="text" name="kelas_jasa" class="form-control" value="{{ $pesananData['kelas_jasa'] }}" readonly>
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="form-group">
                                             <label class="form-label">Sisa Revisi</label>
-                                            <input type="text" name="sisa_revisi" class="form-control" value="{{ $pesananData['sisa_revisi'] }}" readonly>
+                                            <input type="number" name="maksimal_revisi" class="form-control" value="{{ $pesananData['maksimal_revisi'] }}" min="0">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="form-group">
+                                            <label class="form-label">Status Pengerjaan</label>
+                                            <div>
+                                                @php
+                                                    $statusClass = 'status-menunggu';
+                                                    $statusText = 'Menunggu';
+                                                    
+                                                    if(isset($pesananData['status_pengerjaan'])) {
+                                                        switch($pesananData['status_pengerjaan']) {
+                                                            case 'diproses':
+                                                                $statusClass = 'status-proses';
+                                                                $statusText = 'Diproses';
+                                                                break;
+                                                            case 'dikerjakan':
+                                                                $statusClass = 'status-dikerjakan';
+                                                                $statusText = 'Dikerjakan';
+                                                                break;
+                                                            case 'selesai':
+                                                                $statusClass = 'status-selesai';
+                                                                $statusText = 'Selesai';
+                                                                break;
+                                                            default:
+                                                                $statusClass = 'status-menunggu';
+                                                                $statusText = 'Menunggu';
+                                                        }
+                                                    }
+                                                @endphp
+                                                <span class="status-badge {{ $statusClass }}">{{ $statusText }}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -344,10 +664,10 @@ $tPath = app()->environment('local') ? '' : '';
                                         <div class="d-flex align-items-center gap-2">
                                             @if(isset($pesananData['gambar_referensi']) && !empty($pesananData['gambar_referensi']) && !is_null($pesananData['gambar_referensi']))
                                                 <button type="button" class="btn btn-outline-primary btn-sm" onclick="openImageModal('{{ asset('assets3/img/pesanan/'. $pesananData['uuid'] . '/catatan_pesanan/' . $pesananData['gambar_referensi']) }}')">
-                                                    <i class="fas fa-image"></i> {{ isset($pesananData['gambar_referensi']) && !empty($pesananData['gambar_referensi']) && !is_null($pesananData['gambar_referensi']) ? 'Gambar.' . pathinfo($pesananData['gambar_referensi'])['extension'] : 'Tidak ada gambar' }}
+                                                    Gambar.{{ pathinfo($pesananData['gambar_referensi'])['extension'] }}
                                                 </button>
                                                 <button type="button" class="btn btn-success btn-sm" onclick="downloadImage('{{ asset('assets3/img/pesanan/'. $pesananData['uuid'] . '/catatan_pesanan/' . $pesananData['gambar_referensi']) }}', '{{ basename($pesananData['gambar_referensi']) }}')">
-                                                    <i class="fas fa-download"></i> Download
+                                                    Download
                                                 </button>
                                             @else
                                                 <div class="text-muted">Tidak ada gambar referensi</div>
@@ -358,99 +678,102 @@ $tPath = app()->environment('local') ? '' : '';
 
                                 <!-- Estimasi Pengerjaan -->
                                 <div class="row mb-3">
+                                    <div class="col-12 mb-2">
+                                        <label class="form-label">Estimasi Pengerjaan</label>
+                                    </div>
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label class="form-label">Dari</label>
-                                            <input type="date" name="tanggal_awal" class="form-control" value="{{ $pesananData['estimasi_waktu']['dari'] }}" readonly>
+                                            <input type="date" name="estimasi_mulai" class="form-control" value="{{ isset($pesananData['estimasi_mulai']) ? $pesananData['estimasi_mulai'] : $pesananData['estimasi_waktu']['dari'] }}">
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label class="form-label">Sampai</label>
-                                            <input type="date" name="tanggal_selesai" class="form-control" value="{{ $pesananData['estimasi_waktu']['sampai'] }}" readonly>
+                                            <input type="date" name="estimasi_selesai" class="form-control" value="{{ isset($pesananData['estimasi_selesai']) ? $pesananData['estimasi_selesai'] : $pesananData['estimasi_waktu']['sampai'] }}">
                                         </div>
                                     </div>
                                 </div>
-                                @if(in_array($pesananData['status_pesanan'], ['dikerjakan', 'revisi', 'selesai']))
+
                                 <!-- Hasil Desain -->
                                 <div class="row mb-3">
                                     <div class="col-12">
                                         <label class="form-label">Hasil Desain</label>
                                         <div class="d-flex align-items-center gap-2">
-                                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="openImageModal('{{ asset('assets3/img/pesanan/'. $pesananData['uuid'] . '/revisi_editor/' . $pesananData['revisi_editor_terbaru']) }}')">
-                                                <i class="fas fa-image"></i> {{ isset($pesananData['revisi_editor_terbaru']) && !empty($pesananData['revisi_editor_terbaru']) && !is_null($pesananData['revisi_editor_terbaru']) ? 'Gambar.' . pathinfo($pesananData['revisi_editor_terbaru'])['extension'] : 'Tidak ada gambar' }}
-                                            </button>
+                                            @if(isset($pesananData['file_hasil_desain']) && !empty($pesananData['file_hasil_desain']))
+                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="openImageModal('{{ asset('assets3/img/pesanan/'. $pesananData['uuid'] . '/hasil_desain/' . $pesananData['file_hasil_desain']) }}')">
+                                                    Gambar.{{ pathinfo($pesananData['file_hasil_desain'])['extension'] }}
+                                                </button>
+                                                <button type="button" class="btn btn-success btn-sm" onclick="downloadImage('{{ asset('assets3/img/pesanan/'. $pesananData['uuid'] . '/hasil_desain/' . $pesananData['file_hasil_desain']) }}', '{{ $pesananData['file_hasil_desain'] }}')">
+                                                    Download
+                                                </button>
+                                            @else
+                                                <!-- Upload button tetap ditampilkan untuk admin -->
+                                                <button type="button" class="btn btn-outline-secondary btn-sm" disabled>
+                                                    Belum ada hasil desain
+                                                </button>
+                                            @endif
                                             <input type="file" id="input_hasil" name="gambar_hasil_desain" hidden onchange="handleFileChange(event)">
                                             <button type="button" class="btn btn-success btn-sm" onclick="handleFileClick()">
-                                                <i class="fas fa-upload"></i> Upload
+                                                Upload
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Gambar Revisi Pelanggan (jika ada) -->
+                                @if(isset($pesananData['revisi_user']) && !empty($pesananData['revisi_user']))
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <label class="form-label">Gambar Revisi Pelanggan</label>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="openImageModal('{{ asset('assets3/img/pesanan/'. $pesananData['uuid'] . '/revisi_user/' . $pesananData['revisi_user']) }}')">
+                                                Gambar.{{ pathinfo($pesananData['revisi_user'])['extension'] }}
+                                            </button>
+                                            <button type="button" class="btn btn-success btn-sm" onclick="downloadImage('{{ asset('assets3/img/pesanan/'. $pesananData['uuid'] . '/revisi_user/' . $pesananData['revisi_user']) }}', '{{ basename($pesananData['revisi_user']) }}')">
+                                                Download
                                             </button>
                                         </div>
                                     </div>
                                 </div>
                                 @endif
-                                <!-- Gambar Referensi Section -->
-                                <div class="row mb-3">
-                                    <div class="col-12">
-                                        <label class="form-label">Gambar Revisi Pelanggan</label>
-                                        <div class="d-flex align-items-center gap-2">
-                                            @if(isset($pesananData['revisi_user']) && !empty($pesananData['revisi_user']) && !is_null($pesananData['revisi_user']))
-                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="openImageModal('{{ asset('assets3/img/pesanan/'. $pesananData['uuid'] . '/revisi_user/' . $pesananData['revisi_user']) }}')">
-                                                    <i class="fas fa-image"></i> {{ isset($pesananData['revisi_user']) && !empty($pesananData['revisi_user']) && !is_null($pesananData['revisi_user']) ? 'Gambar.' . pathinfo($pesananData['revisi_user'])['extension'] : 'Tidak ada gambar' }}
-                                                </button>
-                                                <button type="button" class="btn btn-success btn-sm" onclick="downloadImage('{{ asset('assets3/img/pesanan/'. $pesananData['uuid'] . '/revisi_user/' . $pesananData['revisi_user']) }}', '{{ basename($pesananData['revisi_user']) }}')">
-                                                    <i class="fas fa-download"></i> Download
-                                                </button>
-                                            @else
-                                                <div class="text-muted">Tidak ada gambar referensi</div>
-                                            @endif
-                                        </div>
-                                    </div>
-                                </div>
-                                @if(in_array($pesananData['status_pesanan'], ['diproses', 'menunggu_editor', 'dikerjakan', 'revisi']))
-                                <!-- Editor Selection -->
+
+                                <!-- Nama Editor -->
                                 <div class="row mb-3">
                                     <div class="col-12">
                                         <div class="form-group">
                                             <label class="form-label">Nama Editor</label>
                                             <select class="form-select" name="editor_id">
-                                                @if(!$pesananData['id_editor'])
+                                                @if(!isset($pesananData['editor_assigned']) || !$pesananData['editor_assigned'])
                                                     <option value="">Pilih Editor</option>
                                                 @endif
                                                 @foreach($editorList as $editor)
-                                                    <option value="{{ $editor->id_editor }}" {{ $pesananData['id_editor'] == $editor->id_editor ? 'selected' : '' }}>{{ $editor->nama_editor }}</option>
+                                                    <option value="{{ $editor->id_editor }}" {{ isset($pesananData['id_editor']) && $pesananData['id_editor'] == $editor->id_editor ? 'selected' : '' }}>{{ $editor->nama_editor }}</option>
                                                 @endforeach
                                             </select>
                                         </div>
                                     </div>
                                 </div>
-                                @endif
+                                
                                 <!-- Action Buttons -->
                                 <div class="row">
                                     <div class="col-12 d-flex justify-content-between">
-                                        <button type="button" class="btn btn-secondary" onclick="history.back()">
-                                            <i class="fas fa-arrow-left"></i> Kembali
+                                        <button type="button" class="btn btn-secondary btn-sm" onclick="history.back()">
+                                            Kembali
                                         </button>
-                                        <div class="d-flex gap-2">
-                                            <!-- Edit Mode Controls - Initially Hidden -->
-                                            <div id="editModeControls" style="display: none;">
-                                                <select name="status" id="statusSelect" class="form-select">
-                                                    @foreach($pesananData['status_pesanan_list'] as $key => $status)
-                                                        <option value="{{ $key }}" {{ $pesananData['status_pesanan'] == $key ? 'selected' : '' }}>{{ $status }}</option>
-                                                    @endforeach
-                                                </select>
-                                                <div class="d-flex gap-2">
-                                                    <button type="button" class="btn btn-success" onclick="saveChanges()">
-                                                        <i class="fas fa-save"></i> Simpan
-                                                    </button>
-                                                    <button type="button" class="btn btn-danger" onclick="cancelEdit()">
-                                                        Batal
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <!-- Read Mode Controls - Initially Visible -->
-                                            <div id="readModeControls">
-                                                <button type="button" class="btn btn-warning" onclick="enableEditMode()">
-                                                    <i class="fas fa-edit"></i> Edit
+                                        <div class="d-flex gap-2 align-items-center">
+                                            <select name="status_pengerjaan" id="statusSelect" class="form-select form-select-sm">
+                                                <option value="menunggu" {{ isset($pesananData['status_pengerjaan']) && $pesananData['status_pengerjaan'] == 'menunggu' ? 'selected' : '' }}>Menunggu</option>
+                                                <option value="diproses" {{ isset($pesananData['status_pengerjaan']) && $pesananData['status_pengerjaan'] == 'diproses' ? 'selected' : '' }}>Diproses</option>
+                                                <option value="dikerjakan" {{ isset($pesananData['status_pengerjaan']) && $pesananData['status_pengerjaan'] == 'dikerjakan' ? 'selected' : '' }}>Dikerjakan</option>
+                                                <option value="selesai" {{ isset($pesananData['status_pengerjaan']) && $pesananData['status_pengerjaan'] == 'selesai' ? 'selected' : '' }}>Selesai</option>
+                                            </select>
+                                            <div class="d-flex gap-2">
+                                                <button type="button" class="btn btn-success btn-sm" onclick="saveChanges()">
+                                                    Save
+                                                </button>
+                                                <button type="button" class="btn btn-danger btn-sm" onclick="cancelEdit()">
+                                                    Cancel
                                                 </button>
                                             </div>
                                         </div>
@@ -485,11 +808,11 @@ $tPath = app()->environment('local') ? '' : '';
                     <div class="d-flex justify-content-between w-100">
                         <span id="imageFileName" class="text-muted"></span>
                         <div>
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                <i class="fas fa-times"></i> Tutup
+                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+                                Tutup
                             </button>
-                            <a id="downloadBtn" href="" download="" class="btn btn-success">
-                                <i class="fas fa-download"></i> Download
+                            <a id="downloadBtn" href="" download="" class="btn btn-success btn-sm">
+                                Download
                             </a>
                         </div>
                     </div>
@@ -504,310 +827,6 @@ $tPath = app()->environment('local') ? '' : '';
     <script src="{{ asset($tPath.'assets/js/app.min.js') }}"></script>
     <script src="{{ asset($tPath.'assets/libs/simplebar/dist/simplebar.js') }}"></script>
     <script src="{{ asset($tPath.'assets2/js/popup.js') }}"></script>
-    
-    <script>
-        // Image Modal Functions
-        function openImageModal(imageSrc) {
-            if(imageSrc == '') {
-                return;
-            }
-            const modal = new bootstrap.Modal(document.getElementById('imageModal'));
-            const modalImage = document.getElementById('modalImage');
-            const imageFileName = document.getElementById('imageFileName');
-            const downloadBtn = document.getElementById('downloadBtn');
-            
-            // Set image source
-            modalImage.src = imageSrc;
-            modalImage.onerror = function() {
-                this.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0yMDAgMTAwTDI4MCAyMDBIMTIwTDIwMCAxMDBaIiBmaWxsPSIjRENEQ0RDIi8+CjxjaXJjbGUgY3g9IjE2MCIgY3k9IjE0MCIgcj0iMTUiIGZpbGw9IiNEQ0RDREMiLz4KPHRleHQgeD0iMjAwIiB5PSIyNDAiIGZpbGw9IiM5OTk5OTkiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+R2FtYmFyIHRpZGFrIGRhcGF0IGRpdG11a2FuPC90ZXh0Pgo8L3N2Zz4K';
-                imageFileName.textContent = 'Gambar tidak dapat dimuat';
-                downloadBtn.style.display = 'none';
-            };
-            
-            // Set file name
-            const fileName = imageSrc.split('/').pop();
-            imageFileName.textContent = fileName;
-            
-            // Set download link
-            downloadBtn.href = imageSrc;
-            downloadBtn.download = fileName;
-            downloadBtn.style.display = 'inline-block';
-            
-            // Show modal
-            modal.show();
-        }
-        // Handle image load errors on thumbnail
-        document.addEventListener('DOMContentLoaded', function() {
-            const thumbnails = document.querySelectorAll('.image-thumbnail img');
-            thumbnails.forEach(img => {
-                img.addEventListener('error', function() {
-                    this.style.border = '2px dashed #dc3545';
-                    this.title = 'Gambar tidak dapat dimuat';
-                });
-                
-                img.addEventListener('load', function() {
-                    this.style.border = '1px solid #dee2e6';
-                    this.title = 'Klik untuk melihat gambar ukuran penuh';
-                });
-            });
-        });
-
-        /////
-        function enableEditMode() {
-            document.getElementById('editModeControls').style.display = 'flex';
-            document.getElementById('editModeControls').style.gap = '10px';
-            // document.getElementById('editModeControls').style.justifyContent = 'flex-end';
-            document.getElementById('readModeControls').style.display = 'none';
-            document.getElementById('readModeControls').style.gap = '0';
-            // document.getElementById('readModeControls').style.justifyContent = 'flex-start';
-            
-            // Enable all form inputs
-            const form = document.querySelector('form');
-            const inputs = form.querySelectorAll('input, select, textarea');
-            
-            // List of fields that should remain readonly
-            const readOnlyFields = ['id_pesanan', 'nama_pelanggan', 'jenis_jasa', 'kelas_jasa', 'sisa_revisi', 'deskripsi', 'tanggal_awal', 'tanggal_selesai'];
-            
-            inputs.forEach(input => {
-                // Only enable fields that should be editable
-                if (!readOnlyFields.includes(input.name)) {
-                    input.removeAttribute('readonly');
-                    input.removeAttribute('disabled');
-                }
-            });
-        }
-
-        // Function to save changes
-        function saveChanges() {
-            document.getElementById('preloader').style.display = 'block';
-            
-            // Check if there's a file selected to upload
-            if (uploadedFile) {
-                // Upload file first, then save other changes
-                uploadFileAndSaveChanges();
-            } else {
-                // No file selected, just save status changes
-                saveStatusChanges();
-            }
-        }
-
-        function uploadFileAndSaveChanges() {
-            // Create FormData object for file upload
-            const formData = new FormData();
-            formData.append('gambar_hasil_desain', uploadedFile);
-            formData.append('id_pesanan', '{{ $pesananData['uuid'] }}');
-            formData.append('_token', csrfToken);
-            
-            // Upload file first
-            fetch('/pesanan/upload-hasil-desain', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    // File uploaded successfully, now save status changes
-                    updateHasilDesainUI(data.filename, data.file_path);
-                    uploadedFile = null; // Clear the file
-                    saveStatusChanges();
-                } else {
-                    document.getElementById('preloader').style.display = 'none';
-                    showRedPopup(data.message || 'Gagal mengupload file');
-                }
-            })
-            .catch(error => {
-                document.getElementById('preloader').style.display = 'none';
-                console.error('Error:', error);
-                showRedPopup('Terjadi kesalahan saat mengupload file');
-            });
-        }
-
-        function saveStatusChanges() {
-            const xhr = new XMLHttpRequest();
-            xhr.open('PUT', '/pesanan/update', true);
-            xhr.setRequestHeader('Content-Type', 'application/json');
-            xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
-            
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === 4) {
-                    document.getElementById('preloader').style.display = 'none';
-                    
-                    if (xhr.status === 200) {
-                        const response = JSON.parse(xhr.responseText);
-                        if (response.status === 'success') {
-                            showGreenPopup(response.message);
-                            setTimeout(function() {
-                                window.location.href = '/pesanan';
-                            }, 2000);
-                        } else {
-                            showRedPopup(response.message);
-                        }
-                    } else {
-                        showRedPopup('Terjadi kesalahan saat menyimpan');
-                    }
-                }
-            };
-            
-            xhr.send(JSON.stringify({
-                id_pesanan: '{{ $pesananData['uuid'] }}',
-                status: document.getElementById('statusSelect').value,
-                editor_id: document.querySelector('select[name="editor_id"]').value
-            }));
-        }
-
-        // Function to cancel edit mode
-        function cancelEdit() {
-            if (confirm('Apakah Anda yakin ingin membatalkan perubahan?')) {
-                disableEditMode();
-                // Here you would typically reset the form to its original values
-                document.querySelector('form').reset();
-            }
-        }
-
-        // Function to disable edit mode
-        function disableEditMode() {
-            document.getElementById('editModeControls').style.display = 'none';
-            document.getElementById('readModeControls').style.display = 'block';
-            
-            const form = document.querySelector('form');
-            const inputs = form.querySelectorAll('input, select, textarea');
-            
-            // Disable all inputs
-            inputs.forEach(input => {
-                input.setAttribute('readonly', true);
-                input.setAttribute('disabled', true);
-            });
-            form.querySelector('input[name="gambar_hasil_desain"]').removeAttribute('readonly');
-            form.querySelector('input[name="gambar_hasil_desain"]').removeAttribute('disabled');
-        }
-        // Enhance download functionality
-        function downloadImage(imageSrc, fileName) {
-            const link = document.createElement('a');
-            link.href = imageSrc;
-            link.download = fileName || 'gambar-referensi';
-            link.target = '_blank';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        // Initialize the page in read-only mode
-        document.addEventListener('DOMContentLoaded', function() {
-            disableEditMode();
-        });
-
-        const allowedFormats = ['image/png', 'image/jpeg', 'image/jpg'];
-        let uploadedFile = null;
-
-        function handleFileClick() {
-            document.getElementById('input_hasil').click();
-        }
-
-        function handleFileChange(event) {
-            const file = event.target.files[0];
-            if (file) {
-                if (!allowedFormats.includes(file.type)) {
-                    showRedPopup("Format file harus png, jpeg, atau jpg!");
-                    return;
-                }
-                uploadedFile = file;
-                
-                // Update UI immediately without uploading
-                updateHasilDesainUIPreview(file.name);
-            }
-        }
-
-        function updateHasilDesainUIPreview(filename) {
-            // Get the preview button element
-            const previewButton = document.querySelector('.btn-outline-primary[onclick*="revisi_editor"]');
-            
-            if (previewButton) {
-                // Update preview button text to show selected file
-                const fileExtension = filename.split('.').pop();
-                previewButton.innerHTML = `<i class="fas fa-image"></i> Gambar.${fileExtension}`;
-                
-                // Disable the onclick since file is not uploaded yet
-                previewButton.setAttribute('onclick', '');
-                previewButton.style.opacity = '0.7';
-                previewButton.title = 'File dipilih, belum diupload';
-            }
-        }
-
-        // Keep the upload function for when it's actually needed (e.g., during save)
-        function uploadFile(file) {
-            // Show preloader
-            document.getElementById('preloader').style.display = 'block';
-            
-            // Create FormData object
-            const formData = new FormData();
-            formData.append('gambar_hasil_desain', file);
-            formData.append('id_pesanan', '{{ $pesananData['uuid'] }}');
-            formData.append('_token', csrfToken);
-            
-            // Send AJAX request
-            fetch('/pesanan/upload-hasil-desain', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Hide preloader
-                document.getElementById('preloader').style.display = 'none';
-                
-                if (data.status === 'success') {
-                    // Show success message
-                    showGreenPopup(data.message);
-                    
-                    // Update the UI after successful upload
-                    updateHasilDesainUI(data.filename, data.file_path);
-                    
-                } else {
-                    showRedPopup(data.message || 'Gagal mengupload file');
-                }
-            })
-            .catch(error => {
-                // Hide preloader
-                document.getElementById('preloader').style.display = 'none';
-                console.error('Error:', error);
-                showRedPopup('Terjadi kesalahan saat mengupload file');
-            });
-        }
-
-        function updateHasilDesainUI(filename, filePath) {
-            // Get the button element
-            const previewButton = document.querySelector('.btn-outline-primary[onclick*="revisi_editor"]');
-            const uploadButton = document.querySelector('.btn-success[onclick="handleFileClick()"]');
-            
-            if (previewButton) {
-                // Update preview button after successful upload
-                const fileExtension = filename.split('.').pop();
-                previewButton.innerHTML = `<i class="fas fa-image"></i> Gambar.${fileExtension}`;
-                previewButton.setAttribute('onclick', `openImageModal('${filePath}')`);
-                previewButton.style.opacity = '1';
-                previewButton.title = 'Klik untuk melihat gambar';
-                
-                // Change upload button text to indicate file was uploaded
-                if (uploadButton) {
-                    uploadButton.innerHTML = '<i class="fas fa-check"></i> Berhasil Diupload';
-                    uploadButton.classList.remove('btn-success');
-                    uploadButton.classList.add('btn-outline-success');
-                    
-                    // Reset after 3 seconds
-                    setTimeout(() => {
-                        uploadButton.innerHTML = '<i class="fas fa-upload"></i> Upload';
-                        uploadButton.classList.remove('btn-outline-success');
-                        uploadButton.classList.add('btn-success');
-                    }, 3000);
-                }
-            }
-        }
-    </script>
 </body>
 
 </html>

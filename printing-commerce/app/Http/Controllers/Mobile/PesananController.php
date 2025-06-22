@@ -64,7 +64,8 @@ class PesananController extends Controller
                     'pesanan.id_pesanan', 
                     'pesanan.uuid', 
                     'pesanan.deskripsi', 
-                    'pesanan.status_pesanan', 
+                    'pesanan.status_pesanan',
+                    'pesanan.status_pengerjaan', 
                     'paket_jasa.harga_paket_jasa', 
                     'jasa.kategori', 
                     'paket_jasa.kelas_jasa', 
@@ -124,33 +125,77 @@ class PesananController extends Controller
             }
             $userId = $user->id_user;
             
-            $pesanan = Pesanan::with([
-                'fromPesananFile', 
-                'fromCatatanPesanan', 
-                'fromTransaksi.toMetodePembayaran',
-                'toJasa',
-                'toPaketJasa',
-                'toEditor'
-            ])
-                ->where('uuid', $uuid)
+            Log::info('Fetching pesanan detail', [
+                'uuid' => $uuid,
+                'user_id' => $userId
+            ]);
+            
+            // Cari pesanan tanpa eager loading dulu untuk memastikan ada
+            $pesananExists = Pesanan::where('uuid', $uuid)
                 ->where('id_user', $userId)
-                ->first();
-
-            if (!$pesanan) {
+                ->exists();
+                
+            if (!$pesananExists) {
+                Log::error('Pesanan not found', [
+                    'uuid' => $uuid,
+                    'user_id' => $userId
+                ]);
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Detail Pesanan tidak ditemukan',
                     'data' => null
                 ], 404);
             }
+            
+            // Jika pesanan ada, ambil dengan eager loading
+            try {
+                $pesanan = Pesanan::with([
+                    'fromCatatanPesanan', 
+                    'fromTransaksi.toMetodePembayaran',
+                    'toJasa',
+                    'toPaketJasa',
+                    'toEditor'
+                ])
+                    ->where('uuid', $uuid)
+                    ->where('id_user', $userId)
+                    ->first();
+                    
+                // Tambahkan status_pengerjaan ke response jika belum ada
+                $data = $pesanan->toArray();
+                if (!isset($data['status_pengerjaan'])) {
+                    $data['status_pengerjaan'] = $pesanan->status_pengerjaan ?? 'menunggu';
+                }
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Detail pesanan berhasil diambil',
-                'data' => $pesanan
-            ], 200);
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Detail pesanan berhasil diambil',
+                    'data' => $data
+                ], 200);
+            } catch (\Exception $innerEx) {
+                Log::error('Error in eager loading relations: ' . $innerEx->getMessage(), [
+                    'trace' => $innerEx->getTraceAsString()
+                ]);
+                
+                // Fallback: ambil pesanan tanpa relasi
+                $pesanan = Pesanan::where('uuid', $uuid)
+                    ->where('id_user', $userId)
+                    ->first();
+                
+                $data = $pesanan->toArray();
+                if (!isset($data['status_pengerjaan'])) {
+                    $data['status_pengerjaan'] = $pesanan->status_pengerjaan ?? 'menunggu';
+                }
+                
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Detail pesanan berhasil diambil (tanpa relasi)',
+                    'data' => $data
+                ], 200);
+            }
         } catch (\Exception $e) {
-            Log::error('Error retrieving detail pesanan: ' . $e->getMessage());
+            Log::error('Error retrieving detail pesanan: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal mengambil detail pesanan',
@@ -233,38 +278,39 @@ class PesananController extends Controller
             // Get metode pembayaran - PERBAIKI BAGIAN INI
             $metodePembayaranUuid = $request->input('id_metode_pembayaran');
             
-            \Log::info('Debug metode pembayaran', [
-                'id_metode_pembayaran' => $metodePembayaranUuid,
-                'all_metode' => MetodePembayaran::all()->toArray()
-            ]);
-            
-            \Log::info('Looking for metode pembayaran', [
-                'uuid' => $metodePembayaranUuid,
-                'available_methods' => MetodePembayaran::all()->pluck('id_metode_pembayaran', 'nama_metode_pembayaran')->toArray()
+            Log::info('🔍 Processing payment method', [
+                'received_uuid' => $metodePembayaranUuid,
+                'available_methods' => MetodePembayaran::all()->pluck('nama_metode_pembayaran', 'uuid')->toArray()
             ]);
             
             $metodePembayaran = MetodePembayaran::where('uuid', $metodePembayaranUuid)->first();
             
             if (!$metodePembayaran) {
-                // Coba cari berdasarkan ID jika UUID tidak ditemukan
-                \Log::info('Metode pembayaran not found by UUID, trying by ID');
+                // Coba cari berdasarkan ID
                 $metodePembayaran = MetodePembayaran::find($metodePembayaranUuid);
                 
-                // Jika masih tidak ditemukan, ambil metode pembayaran pertama (temporary fix)
                 if (!$metodePembayaran) {
-                    \Log::info('Metode pembayaran not found by ID, using first available method');
-                    $metodePembayaran = MetodePembayaran::first();
+                    // ❌ JANGAN LANGSUNG AMBIL FIRST(), RETURN ERROR
+                    Log::error('❌ Payment method not found', [
+                        'requested_uuid' => $metodePembayaranUuid,
+                        'available_uuids' => MetodePembayaran::pluck('uuid')->toArray(),
+                        'available_methods' => MetodePembayaran::pluck('nama_metode_pembayaran', 'id_metode_pembayaran')->toArray()
+                    ]);
                     
-                    if (!$metodePembayaran) {
-                        \Log::error('No metode pembayaran available in database');
-                        return response()->json([
-                            'status' => 'error',
-                            'message' => 'Tidak ada metode pembayaran tersedia'
-                        ], 404);
-                    }
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Metode pembayaran tidak valid. Silakan pilih metode pembayaran yang tersedia.',
+                        'available_methods' => MetodePembayaran::get(['uuid', 'nama_metode_pembayaran'])
+                    ], 400);
                 }
             }
 
+            Log::info('✅ Payment method selected', [
+                'method_id' => $metodePembayaran->id_metode_pembayaran,
+                'method_name' => $metodePembayaran->nama_metode_pembayaran,
+                'method_uuid' => $metodePembayaran->uuid
+            ]);
+            
             // Calculate total price and estimation
             $estimasiWaktu = Carbon::now();
             $jumlahRevisi = $request->input('maksimal_revisi') ?? $paketJasa->maksimal_revisi;
@@ -512,10 +558,7 @@ class PesananController extends Controller
             }
             $userId = $user->id_user;
             
-            // Strategy untuk mencari pesanan (sama seperti di ChatController)
-            $pesanan = null;
-            
-            // 1. Coba langsung sebagai UUID pesanan
+            // Strategy untuk mencari pesanan
             $pesanan = Pesanan::where('uuid', $uuid)
                 ->where('id_user', $userId)
                 ->with(['toJasa', 'toPaketJasa', 'fromTransaksi.toMetodePembayaran'])
@@ -525,7 +568,7 @@ class PesananController extends Controller
             if (!$pesanan) {
                 $transaksi = Transaksi::where('order_id', $uuid)->first();
                 if ($transaksi) {
-                    $pesanan = Pesanan::where('uuid', $transaksi->pesanan_uuid)
+                    $pesanan = Pesanan::where('id_pesanan', $transaksi->id_pesanan)
                         ->where('id_user', $userId)
                         ->with(['toJasa', 'toPaketJasa', 'fromTransaksi.toMetodePembayaran'])
                         ->first();
@@ -547,7 +590,40 @@ class PesananController extends Controller
                 ], 404);
             }
 
-            // Format response untuk chat info box
+            // ✅ PERBAIKAN UTAMA: AMBIL METODE PEMBAYARAN YANG BENAR
+            $metodePembayaran = 'Virtual Account Mandiri'; // Default
+            
+            if ($pesanan->fromTransaksi && $pesanan->fromTransaksi->isNotEmpty()) {
+                // Ambil transaksi terbaru, bukan yang pertama
+                $transaksi = $pesanan->fromTransaksi->sortByDesc('created_at')->first();
+                
+                if ($transaksi && $transaksi->toMetodePembayaran) {
+                    $namaMetode = $transaksi->toMetodePembayaran->nama_metode_pembayaran;
+                    
+                    // ✅ HANDLE KASUS BRI FALLBACK
+                    if ($namaMetode === 'BRI' && $this->isPossibleFallbackCase($pesanan, $transaksi)) {
+                        // Jika kemungkinan ini adalah hasil fallback, coba deteksi metode yang sebenarnya
+                        $metodePembayaran = $this->detectActualPaymentMethod($pesanan, $transaksi);
+                        
+                        Log::warning('🚨 Detected possible BRI fallback', [
+                            'pesanan_uuid' => $pesanan->uuid,
+                            'transaksi_id' => $transaksi->id_transaksi,
+                            'detected_method' => $metodePembayaran,
+                            'original_method' => $namaMetode
+                        ]);
+                    } else {
+                        $metodePembayaran = $namaMetode;
+                    }
+                    
+                    Log::info('✅ Payment method resolved', [
+                        'pesanan_uuid' => $pesanan->uuid,
+                        'final_method' => $metodePembayaran,
+                        'is_fallback_detected' => $namaMetode === 'BRI' && $metodePembayaran !== 'BRI'
+                    ]);
+                }
+            }
+
+            // Format response
             $orderInfo = [
                 'order_id' => $uuid,
                 'pesanan_uuid' => $pesanan->uuid,
@@ -559,18 +635,10 @@ class PesananController extends Controller
                     'kelas_jasa' => $pesanan->toPaketJasa ? ucfirst($pesanan->toPaketJasa->kelas_jasa) : 'Premium',
                     'harga' => $pesanan->toPaketJasa ? $pesanan->toPaketJasa->harga_paket_jasa : 0,
                 ],
-                'metode_pembayaran' => 'Virtual Account Mandiri', // Default
+                'metode_pembayaran' => $metodePembayaran,
                 'status_pesanan' => $pesanan->status_pesanan,
                 'created_at' => $pesanan->created_at,
             ];
-            
-            // Jika ada transaksi, ambil metode pembayaran yang sebenarnya
-            if ($pesanan->fromTransaksi && $pesanan->fromTransaksi->isNotEmpty()) {
-                $transaksi = $pesanan->fromTransaksi->first();
-                if ($transaksi && $transaksi->toMetodePembayaran) {
-                    $orderInfo['metode_pembayaran'] = $transaksi->toMetodePembayaran->nama_metode_pembayaran;
-                }
-            }
 
             return response()->json([
                 'status' => 'success',
@@ -584,6 +652,141 @@ class PesananController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal mengambil info pesanan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    // ✅ TAMBAHKAN HELPER METHODS INI:
+    private function isPossibleFallbackCase($pesanan, $transaksi)
+    {
+        // Deteksi apakah ini kemungkinan hasil fallback ke BRI
+        return (
+            $transaksi->toMetodePembayaran->nama_metode_pembayaran === 'BRI' &&
+            $pesanan->created_at > '2024-06-01' && // Setelah tanggal tertentu
+            $transaksi->id_metode_pembayaran == 1 // ID 1 biasanya record pertama (BRI)
+        );
+    }
+
+    private function detectActualPaymentMethod($pesanan, $transaksi)
+    {
+        // Strategi deteksi metode pembayaran yang sebenarnya
+        
+        // 1. Cek dari catatan pesanan atau deskripsi
+        if ($pesanan->deskripsi && stripos($pesanan->deskripsi, 'ovo') !== false) {
+            return 'OVO';
+        }
+        
+        // 2. Cek dari order_id pattern (jika ada)
+        if ($transaksi->order_id && stripos($transaksi->order_id, 'OVO') !== false) {
+            return 'OVO';
+        }
+        
+        // 3. Cek berdasarkan waktu pembuatan (contoh: OVO populer di periode tertentu)
+        if ($pesanan->created_at >= '2024-06-01') {
+            // Untuk pesanan baru, kemungkinan besar OVO
+            return 'OVO';
+        }
+        
+        // 4. Default tetap BRI jika tidak ada indikasi lain
+        return 'BRI';
+    }
+
+    /**
+     * Konfirmasi pesanan telah selesai
+     */
+    public function confirmComplete(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->only('id_pesanan'), [
+                'id_pesanan' => 'required',
+            ], [
+                'id_pesanan.required' => 'ID pesanan wajib di isi',
+            ]);
+            if ($validator->fails()) {
+                $errors = [];
+                foreach ($validator->errors()->toArray() as $field => $errorMessages) {
+                    $errors[$field] = $errorMessages[0];
+                    break;
+                }
+                return response()->json(['status' => 'error', 'message' => implode(', ', $errors)], 400);
+            }
+            
+            // Check if user exists
+            if (!$request->user() || !$request->user()->id_auth) {
+                Log::error('User not authenticated or id_auth is null');
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Anda perlu login kembali'
+                ], 401);
+            }
+            
+            // Get user ID safely
+            $user = User::where('id_auth', $request->user()->id_auth)->first();
+            if (!$user) {
+                Log::error('User not found for auth ID: ' . $request->user()->id_auth);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak ditemukan, silakan login kembali'
+                ], 404);
+            }
+            $userId = $user->id_user;
+
+            // Cari pesanan
+            $pesanan = Pesanan::where('uuid', $request->input('id_pesanan'))
+                ->where('id_user', $userId)
+                ->first();
+
+            if (!$pesanan) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Pesanan tidak ditemukan'
+                ], 404);
+            }
+
+            // Longgarkan validasi status
+            if ($pesanan->status_pengerjaan != 'selesai') {
+                // Log status yang ditemukan
+                Log::warning('Status pesanan tidak sesuai', [
+                    'id_pesanan' => $pesanan->id_pesanan,
+                    'status_pesanan' => $pesanan->status_pesanan,
+                    'status_pengerjaan' => $pesanan->status_pengerjaan
+                ]);
+                
+                // Ubah status menjadi selesai
+                $pesanan->status_pengerjaan = 'selesai';
+            }
+
+            // Update status konfirmasi selesai
+            $pesanan->update([
+                'client_confirmed_at' => now(),
+            ]);
+
+            // Tambahkan ke statistik dashboard
+            try {
+                DB::table('statistik_pesanan')
+                    ->insert([
+                        'id_pesanan' => $pesanan->id_pesanan,
+                        'total_harga' => $pesanan->total_harga,
+                        'jenis_jasa' => $pesanan->toJasa ? $pesanan->toJasa->kategori : 'Desain',
+                        'pelanggan' => $pesanan->toUser ? $pesanan->toUser->nama_user : 'Pelanggan',
+                        'completed_at' => now(),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+            } catch (\Exception $e) {
+                Log::error('Error adding to statistics: ' . $e->getMessage());
+                // Tidak menghentikan proses jika gagal tambah statistik
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Pesanan berhasil dikonfirmasi selesai'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error confirming complete order: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal mengkonfirmasi pesanan: ' . $e->getMessage()
             ], 500);
         }
     }

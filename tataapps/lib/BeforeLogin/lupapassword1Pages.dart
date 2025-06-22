@@ -14,6 +14,7 @@ import 'package:flutter/services.dart';
 import 'package:TATA/services/AuthService.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:TATA/BeforeLogin/page_login.dart';
+import 'package:TATA/helper/emailjs_otp.dart';
 
 class LupaPassword1 extends StatefulWidget {
   const LupaPassword1({super.key});
@@ -28,7 +29,7 @@ class _LupaPassword1State extends State<LupaPassword1> {
   bool isLoading = false;
   String errorText = '';
   
-  Future<void> _resetPassword() async {
+  Future<void> _sendOTP() async {
     setState(() {
       isLoading = true;
       errorText = '';
@@ -42,80 +43,74 @@ class _LupaPassword1State extends State<LupaPassword1> {
       return;
     }
     
+    // Validasi format email
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(emailController.text)) {
+      setState(() {
+        isLoading = false;
+        errorText = 'Format email tidak valid';
+      });
+      return;
+    }
+    
     try {
-      // Kirim email reset password menggunakan Firebase Auth
-      await _authService.resetPassword(emailController.text);
+      // Verify if email exists in the system
+      final emailExists = await _authService.checkEmailExists(emailController.text);
       
-      // Berhasil mengirim email reset password
-      if (mounted) {
+      if (!emailExists) {
         setState(() {
           isLoading = false;
+          errorText = 'Email tidak terdaftar dalam sistem';
         });
-        
-        // Tampilkan dialog sukses
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: const Text('Email Terkirim'),
-              content: const Text(
-                'Link untuk reset password telah dikirim ke email Anda. '
-                'Silakan cek email Anda dan ikuti instruksi untuk reset password.'
-              ),
-              actions: <Widget>[
-                TextButton(
-                  child: const Text('OK'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    // Kembali ke halaman login
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (context) => const page_login()),
-                    );
-                  },
-                ),
-              ],
-            );
-          },
-        );
+        return;
       }
-    } on FirebaseAuthException catch (e) {
-      setState(() {
-        isLoading = false;
-        
-        switch (e.code) {
-          case 'user-not-found':
-            errorText = 'Email tidak terdaftar';
-            break;
-          case 'invalid-email':
-            errorText = 'Format email tidak valid';
-            break;
-          default:
-            errorText = 'Gagal mengirim email reset password: ${e.message}';
+      
+      // Generate OTP and send it via EmailJS
+      final otp = (100000 + (DateTime.now().millisecondsSinceEpoch % 900000)).toString();
+      final sent = await EmailJsOtp.sendOtpEmailJS(email: emailController.text, otp: otp);
+      
+      if (sent) {
+        if (mounted) {
+          setState(() {
+            isLoading = false;
+          });
+          
+          // Navigate to OTP verification page
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => LupaPassword2(
+                email: emailController.text,
+              ),
+            ),
+          );
         }
-      });
+      } else {
+        setState(() {
+          isLoading = false;
+          errorText = 'Gagal mengirim kode OTP. Silakan coba lagi.';
+        });
+      }
     } catch (e) {
+      print('Error saat mengirim OTP: $e');
       setState(() {
         isLoading = false;
-        errorText = 'Terjadi kesalahan: $e';
+        errorText = 'Terjadi kesalahan saat memproses permintaan';
       });
     }
   }
 
   void _validateInputs() async {
-    setState(() {
-      if (emailController.text.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Email tidak boleh kosong')),
-        );
-      } else if (emailController.text.length <= 10) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Email tidak valid')),
-        );
-      } else {
-        _resetPassword();
-      }
-    });
+    if (emailController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Email tidak boleh kosong')),
+      );
+    } else if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(emailController.text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Email tidak valid')),
+      );
+    } else {
+      _sendOTP();
+    }
   }
 
   @override
@@ -224,6 +219,17 @@ class _LupaPassword1State extends State<LupaPassword1> {
                                   ),
                                   onTap: () {},
                                 ),
+                                if (errorText.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8.0),
+                                    child: Text(
+                                      errorText,
+                                      style: TextStyle(
+                                        color: Colors.red,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
@@ -241,42 +247,67 @@ class _LupaPassword1State extends State<LupaPassword1> {
                                     child: ElevatedButton(
                                       style: CustomButton.DefaultButton(
                                           CustomColors.primaryColor),
-                                      onPressed: () {
-                                        _validateInputs();
-                                        setState(() {});
-                                      },
-                                      child: Text("Lanjut",
+                                      onPressed: isLoading ? null : _validateInputs,
+                                      child: isLoading 
+                                        ? SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : Text("Masuk",
                                           style: CustomText.TextArvoBold(
                                               18, CustomColors.whiteColor)),
                                     ),
                                   ),
                                 ),
                                 Padding(
-                                  padding: const EdgeInsets.only(bottom: 20),
-                                  child: Align(
-                                    alignment: Alignment.center,
-                                    child: ElevatedButton(
-                                      style: CustomButton.WhiteButton(
-                                          CustomColors.whiteColor),
-                                      onPressed: () {
-                                        Navigator.pop(context);
-                                        setState(() {
-                                          try {
-                                            print("press");
-                                          } catch ($e) {
-                                            CustomWidget.NotifGagal(context);
-                                          }
-                                        });
-                                      },
-                                      child: Text(
-                                        "Kembali",
-                                        style: CustomText.TextArvoBold(
-                                            16, CustomColors.blackColor),
-                                        maxLines: 1,
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 10),
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.white,
+                                      foregroundColor: Colors.black,
+                                      side: BorderSide(
+                                          color: Colors.black, width: 1),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(30),
                                       ),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 15),
+                                    ),
+                                    child: Center(
+                                      child: Text("Kembali",
+                                          style: CustomText.TextArvoBold(
+                                              16, CustomColors.blackColor)),
                                     ),
                                   ),
                                 ),
+                                const SizedBox(height: 20),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text("Belum Punya Akun? ",
+                                        style: CustomText.TextArvo(
+                                            14, CustomColors.HintColor)),
+                                    GestureDetector(
+                                      onTap: () {
+                                        print("Daftar sekarang ditekan");
+                                      },
+                                      child: Text(
+                                        "Daftar Sekarang",
+                                        style: CustomText.TextArvoBold(
+                                            14, CustomColors.secondaryColor),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
                               ],
                             ),
                           ),

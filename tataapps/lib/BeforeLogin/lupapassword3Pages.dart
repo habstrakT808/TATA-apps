@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:TATA/src/CustomColors.dart';
 import 'package:lottie/lottie.dart';
 import 'package:TATA/src/customConfirmDialog.dart';
+import 'package:TATA/services/AuthService.dart';
 
 class Lupapassword3 extends StatefulWidget {
   final String email;
@@ -19,13 +20,13 @@ class Lupapassword3 extends StatefulWidget {
 }
 
 class _Lupapassword3State extends State<Lupapassword3> {
-  final String _passwordBaruError = '';
-  final String _konfirmasiPasswordError = '';
+  String _passwordBaruError = '';
+  String _konfirmasiPasswordError = '';
   bool _isPasswordVisible = false;
   bool _isKonfirmasiPasswordVisible = false;
   String _password = '';
   double _strength = 0;
-  final bool _isPasswordMatch = true;
+  bool _isPasswordMatch = true;
   bool _isLoading = false;
 
   final TextEditingController _passwordBaruController = TextEditingController();
@@ -71,60 +72,123 @@ class _Lupapassword3State extends State<Lupapassword3> {
       }
     });
   }
+  
+  void _checkPasswordMatch(String value) {
+    setState(() {
+      _isPasswordMatch = _passwordBaruController.text == value;
+      if (!_isPasswordMatch) {
+        _konfirmasiPasswordError = 'Password tidak sama';
+      } else {
+        _konfirmasiPasswordError = '';
+      }
+    });
+  }
 
-  void _handleNext() async {
-    bool confirm = await CustomConfirmDialog.show(
-      context: context,
-      title: 'Konfirmasi',
-      message: 'Apakah password yang anda masukkan sudah benar?',
-      confirmText: 'Ya',
-      cancelText: 'Tidak',
-    );
-
-    if (confirm) {
-      setState(() {
-        _isLoading = true;
-        _SendEmailUser();
-      });
+  void _validateForm() {
+    setState(() {
+      // Validate password
+      if (_passwordBaruController.text.isEmpty) {
+        _passwordBaruError = 'Password tidak boleh kosong';
+      } else if (_passwordBaruController.text.length < 6) {
+        _passwordBaruError = 'Password minimal 6 karakter';
+      } else {
+        _passwordBaruError = '';
+      }
+      
+      // Validate confirmation password
+      if (_konfirmasiPasswordController.text.isEmpty) {
+        _konfirmasiPasswordError = 'Konfirmasi password tidak boleh kosong';
+      } else if (_konfirmasiPasswordController.text != _passwordBaruController.text) {
+        _konfirmasiPasswordError = 'Password tidak sama';
+        _isPasswordMatch = false;
+      } else {
+        _konfirmasiPasswordError = '';
+        _isPasswordMatch = true;
+      }
+    });
+    
+    if (_passwordBaruError.isEmpty && _konfirmasiPasswordError.isEmpty) {
+      _handleNext();
     }
   }
 
-  Future<Map<String, dynamic>?> _SendEmailUser() async {
-    final result = await UserApi.ForgotPassword(widget.email, _password);
-    print("Result : $result");
-    if (result != null) {
+  void _handleNext() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      print('Mencoba reset password hybrid untuk email: ${widget.email}');
+      final result = await AuthService().resetPasswordHybrid(widget.email, _passwordBaruController.text);
+      
+      if (!mounted) return;
+      
+      setState(() {
+        _isLoading = false;
+      });
+      
       if (result['status'] == "success") {
-        print("Result : $result");
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const LupaPassword4()),
-        );
-      } else if (result['status'] == "error") {
-        print("Resultt : $result");
-        print("Resultt : ${widget.email}");
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal ubah password : ${result['message']}')),
+        // Tampilkan pesan sukses
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Password Berhasil Diubah'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(result['message'] ?? 'Password berhasil diubah'),
+                if (result.containsKey('warning'))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      'Info: ${result['warning']}',
+                      style: TextStyle(
+                        color: Colors.orange,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LupaPassword4()),
+                  );
+                },
+                child: Text('OK'),
+              ),
+            ],
+          ),
         );
       } else {
-        print("Resulttt : $result");
+        String errorMessage = result['message'] ?? 'Terjadi kesalahan';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content:
-                  Text('Gagal ubah password : ada kesalahan pengiriman data')),
+          SnackBar(
+            content: Text('Gagal mengubah password: $errorMessage'),
+            backgroundColor: Colors.red,
+          )
         );
       }
-    } else {
-      print("gagal : $result");
+    } catch (e) {
+      if (!mounted) return;
+      
+      print('Error saat reset password: $e');
+      setState(() {
+        _isLoading = false;
+      });
+      
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Pendaftaran gagal: ada kesalahan pengiriman data')),
+        SnackBar(
+          content: Text('Terjadi kesalahan: $e'),
+          backgroundColor: Colors.red,
+        )
       );
     }
-
-    setState(() {
-      _isLoading = false; // Menyembunyikan loading setelah permintaan selesai
-    });
-    return null;
   }
 
   @override
@@ -171,31 +235,41 @@ class _Lupapassword3State extends State<Lupapassword3> {
                             topRight: Radius.circular(10)),
                       ),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 25),
                         child: SingleChildScrollView(
-                          child: Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 32.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 20),
-                                Center(
-                                  child: Text('Lupa Password',
-                                      style: CustomText.TextArvoBold(
-                                          22, CustomColors.blackColor)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 20),
+                              Center(
+                                child: Text('Lupa Password',
+                                    style: CustomText.TextArvoBold(
+                                        22, CustomColors.blackColor)),
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                'Password Baru',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                                const SizedBox(height: 20),
-                                CustomFormField(
-                                  style: CustomText.TextArvoBold(
-                                      12, CustomColors.blackColor),
-                                  controller: _passwordBaruController,
-                                  labelText: 'Password Baru',
-                                  hintText: 'Masukan Password Baru',
-                                  obscureText: !_isPasswordVisible,
-                                  errorText: _passwordBaruError.isNotEmpty
-                                      ? _passwordBaruError
-                                      : null,
+                              ),
+                              const SizedBox(height: 5),
+                              TextField(
+                                controller: _passwordBaruController,
+                                obscureText: !_isPasswordVisible,
+                                decoration: InputDecoration(
+                                  hintText: 'Masukkan Password Baru',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: BorderSide(
+                                      color: CustomColors.primaryColor,
+                                    ),
+                                  ),
+                                  errorText: _passwordBaruError.isNotEmpty ? _passwordBaruError : null,
                                   suffixIcon: IconButton(
                                     icon: Icon(
                                       _isPasswordVisible
@@ -205,54 +279,64 @@ class _Lupapassword3State extends State<Lupapassword3> {
                                     ),
                                     onPressed: () {
                                       setState(() {
-                                        _isPasswordVisible =
-                                            !_isPasswordVisible;
+                                        _isPasswordVisible = !_isPasswordVisible;
                                       });
                                     },
                                   ),
-                                  onChanged: (value) => _checkPassword(value),
                                 ),
-                                const SizedBox(height: 5),
-                                // Bar strength password tetap sama
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    SizedBox(
-                                      width: 100,
-                                      height: 5,
-                                      child: LinearProgressIndicator(
-                                        value: _strength,
-                                        backgroundColor: Colors.grey[300],
-                                        color: _strength <= 1 / 4
-                                            ? Colors.red
-                                            : _strength == 2 / 4
-                                                ? Colors.yellow
-                                                : _strength == 3 / 4
-                                                    ? Colors.blue
-                                                    : Colors.green,
-                                      ),
+                                onChanged: _checkPassword,
+                              ),
+                              const SizedBox(height: 5),
+                              // Bar strength password
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  SizedBox(
+                                    width: 100,
+                                    height: 5,
+                                    child: LinearProgressIndicator(
+                                      value: _strength,
+                                      backgroundColor: Colors.grey[300],
+                                      color: _strength <= 1 / 4
+                                          ? Colors.red
+                                          : _strength == 2 / 4
+                                              ? Colors.yellow
+                                              : _strength == 3 / 4
+                                                  ? Colors.blue
+                                                  : Colors.green,
                                     ),
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      _getPasswordStrengthText(),
-                                      style: const TextStyle(fontSize: 10),
-                                    ),
-                                  ],
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    _getPasswordStrengthText(),
+                                    style: const TextStyle(fontSize: 10),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                'Konfirmasi Password Baru',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                                //batas bar
-                                const SizedBox(height: 20),
-                                CustomFormField(
-                                  controller: _konfirmasiPasswordController,
-                                  labelText: 'Konfirmasi Password Baru',
-                                  hintText: 'Masukan Konfirmasi Password Baru',
-                                  obscureText: !_isKonfirmasiPasswordVisible,
-                                  errorText: _konfirmasiPasswordError.isNotEmpty
-                                      ? _konfirmasiPasswordError
-                                      : null,
-                                  onChanged: (value) {
-                                    setState(
-                                        () {}); // Menyegarkan state agar tombol diperbarui
-                                  },
+                              ),
+                              const SizedBox(height: 5),
+                              TextField(
+                                controller: _konfirmasiPasswordController,
+                                obscureText: !_isKonfirmasiPasswordVisible,
+                                decoration: InputDecoration(
+                                  hintText: 'Masukkan Konfirmasi Password Baru',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: BorderSide(
+                                      color: CustomColors.primaryColor,
+                                    ),
+                                  ),
+                                  errorText: _konfirmasiPasswordError.isNotEmpty ? _konfirmasiPasswordError : null,
                                   suffixIcon: IconButton(
                                     icon: Icon(
                                       _isKonfirmasiPasswordVisible
@@ -262,76 +346,76 @@ class _Lupapassword3State extends State<Lupapassword3> {
                                     ),
                                     onPressed: () {
                                       setState(() {
-                                        _isKonfirmasiPasswordVisible =
-                                            !_isKonfirmasiPasswordVisible;
+                                        _isKonfirmasiPasswordVisible = !_isKonfirmasiPasswordVisible;
                                       });
                                     },
                                   ),
                                 ),
-                                const SizedBox(height: 20),
-                                Center(
-                                  child: SizedBox(
-                                    width:
-                                        MediaQuery.of(context).size.width * 0.8,
-                                    child: ElevatedButton(
-                                      // onPressed: _isButtonEnabled ? _handleNext : null,
-                                      onPressed: _isButtonEnabled
-                                          ? () {
-                                              _handleNext();
-                                            }
-                                          : null,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: _isButtonEnabled
-                                            ? CustomColors.primaryColor
-                                            : Colors.grey,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(30.0),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 15.0),
-                                      ),
-                                      child: const Text(
-                                        'Ubah',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          color: Colors.white,
-                                          fontFamily: 'NotoSanSemiBold',
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
+                                onChanged: _checkPasswordMatch,
+                              ),
+                              const SizedBox(height: 30),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  style: CustomButton.DefaultButton(
+                                      CustomColors.primaryColor),
+                                  onPressed: _isLoading ? null : _validateForm,
+                                  child: _isLoading
+                                      ? SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : Text("Masuk",
+                                          style: CustomText.TextArvoBold(
+                                              18, CustomColors.whiteColor)),
+                                ),
+                              ),
+                              const SizedBox(height: 15),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: Colors.black,
+                                    side: BorderSide(color: Colors.black, width: 1),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(vertical: 15),
+                                  ),
+                                  child: Text("Kembali",
+                                      style: CustomText.TextArvoBold(
+                                          16, CustomColors.blackColor)),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text("Belum Punya Akun? ",
+                                      style: CustomText.TextArvo(
+                                          14, CustomColors.HintColor)),
+                                  GestureDetector(
+                                    onTap: () {
+                                      print("Daftar sekarang ditekan");
+                                    },
+                                    child: Text(
+                                      "Daftar Sekarang",
+                                      style: CustomText.TextArvoBold(
+                                          14, CustomColors.secondaryColor),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: 10),
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 20),
-                                  child: Align(
-                                    alignment: Alignment.center,
-                                    child: ElevatedButton(
-                                      style: CustomButton.WhiteButton(
-                                          CustomColors.whiteColor),
-                                      onPressed: () {
-                                        Navigator.pop(context);
-                                        setState(() {
-                                          try {
-                                            print("press");
-                                          } catch ($e) {
-                                            CustomWidget.NotifGagal(context);
-                                          }
-                                        });
-                                      },
-                                      child: Text(
-                                        "    Kembali    ",
-                                        style: CustomText.TextArvoBold(
-                                            16, CustomColors.blackColor),
-                                        maxLines: 1,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                            ],
                           ),
                         ),
                       ),
@@ -344,34 +428,9 @@ class _Lupapassword3State extends State<Lupapassword3> {
         ),
         if (_isLoading)
           Container(
-            color: Colors.black54,
+            color: Colors.black.withOpacity(0.5),
             child: Center(
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Lottie.asset(
-                      'assets/animations/loading.json',
-                      width: 150,
-                      height: 150,
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Mohon Tunggu...',
-                      style: TextStyle(
-                        fontFamily: 'NotoSanSemiBold',
-                        fontSize: 14,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              child: CircularProgressIndicator(),
             ),
           ),
       ],

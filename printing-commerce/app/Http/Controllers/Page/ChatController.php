@@ -16,6 +16,9 @@ use Illuminate\Support\Facades\Log;
 class ChatController extends Controller
 {
     public function showAll(Request $request){
+        // Assign semua chat yang belum memiliki admin ke admin yang sedang login
+        $this->assignAllChatsToAdmin($request);
+        
         $dataShow = [
             'userAuth' => array_merge(Admin::where('id_auth', $request->user()['id_auth'])->first()->toArray(), ['role' => $request->user()['role']]),
         ];
@@ -58,13 +61,13 @@ class ChatController extends Controller
             
             Log::info("Admin {$admin->nama_admin} (ID: {$admin->id_admin}) requesting chats");
             
-            // Get chats assigned to this admin
+            // Ubah query untuk menampilkan semua chat yang ada di database
+            // Tidak lagi memfilter berdasarkan admin_id
             $chats = Chat::with(['user', 'pesanan'])
-                ->where('admin_id', $admin->id_admin)
                 ->orderBy('updated_at', 'desc')
                 ->get();
                 
-            Log::info("Found " . $chats->count() . " chats for admin {$admin->id_admin}");
+            Log::info("Found " . $chats->count() . " chats total");
             
             // Transform data untuk frontend
             $transformedChats = $chats->map(function($chat) {
@@ -168,11 +171,10 @@ class ChatController extends Controller
                 ], 404);
             }
             
-            // If chat doesn't have admin assigned, assign this admin
-            if (!$chat->admin_id) {
-                $chat->admin_id = $admin->id_admin;
-                $chat->save();
-            }
+            // Selalu tetapkan admin yang sedang login sebagai admin chat
+            // Ini memastikan chat akan muncul di daftar chat admin
+            $chat->admin_id = $admin->id_admin;
+            $chat->save();
             
             // Create message - PERBAIKAN: gunakan id_auth untuk sender_id
             $message = new ChatMessage();
@@ -287,6 +289,38 @@ class ChatController extends Controller
                 'success' => false,
                 'message' => 'Gagal menugaskan chat ke admin: ' . $e->getMessage()
             ], 500);
+        }
+    }
+    
+    /**
+     * Menetapkan admin yang sedang login sebagai admin untuk semua chat yang belum memiliki admin
+     */
+    private function assignAllChatsToAdmin(Request $request) {
+        try {
+            $authUser = $request->user();
+            if (!$authUser) {
+                return;
+            }
+            
+            // Cari admin berdasarkan id_auth dari session
+            $admin = Admin::where('id_auth', $authUser['id_auth'])->first();
+            if (!$admin) {
+                return;
+            }
+            
+            // Ambil semua chat yang belum memiliki admin
+            $unassignedChats = Chat::whereNull('admin_id')->get();
+            
+            if ($unassignedChats->count() > 0) {
+                Log::info("Assigning {$unassignedChats->count()} chats to admin {$admin->nama_admin}");
+                
+                foreach ($unassignedChats as $chat) {
+                    $chat->admin_id = $admin->id_admin;
+                    $chat->save();
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Error assigning chats to admin: ' . $e->getMessage());
         }
     }
 }

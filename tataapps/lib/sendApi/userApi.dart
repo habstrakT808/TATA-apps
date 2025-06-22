@@ -3,6 +3,7 @@ import 'package:TATA/SendApi/Server.dart';
 import 'package:TATA/SendApi/tokenJWT.dart';
 import 'package:TATA/helper/user_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
 
 class UserApi {
   static Future<Map<String, dynamic>?> GantiPasswordProfil(
@@ -86,31 +87,78 @@ class UserApi {
 
   static Future<Map<String, dynamic>?> ForgotPassword(
       String email, String password) async {
-    final response = await http.post(
-      Server.urlLaravel("verify/password"),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-        'password': password,
-      }),
-    );
     try {
+      // 1. Update password di Laravel terlebih dahulu
+      final response = await http.post(
+        Server.urlLaravel("mobile/users/change-password"),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'password': password,
+        }),
+      );
+      
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['status'] == 'success') {
-          return data;
-        } else {
-          return data;
+          
+          // 2. Setelah Laravel berhasil, update Firebase juga
+          try {
+            // Coba login dengan password baru untuk memastikan Firebase terupdate
+            await FirebaseAuth.instance.signInWithEmailAndPassword(
+              email: email, 
+              password: password
+            );
+            
+            // Jika berhasil login, berarti password sudah sinkron
+            await FirebaseAuth.instance.signOut(); // Logout setelah verifikasi
+            
+            return {
+              'status': 'success',
+              'message': 'Password berhasil diubah dan tersinkronisasi.'
+            };
+          } catch (firebaseError) {
+            print('Firebase masih belum sinkron, kirim reset email: $firebaseError');
+            
+            // Jika Firebase belum sinkron, kirim email reset
+            try {
+              await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+              return {
+                'status': 'success',
+                'message': 'Password Laravel berhasil diubah. Email reset Firebase telah dikirim untuk sinkronisasi.'
+              };
+            } catch (resetError) {
+              return {
+                'status': 'success',
+                'message': 'Password Laravel berhasil diubah. Silakan reset password Firebase secara manual.'
+              };
+            }
+          }
         }
-      } else {
-        final data = jsonDecode(response.body);
-        return data;
       }
+      
+      final data = jsonDecode(response.body);
+      return data;
+      
     } catch (e) {
-      print('Errorr: $e');
+      print('Error: $e');
+      return {'status': 'error', 'message': 'Terjadi kesalahan: $e'};
     }
-    print('Errorr: ${response.body.toString()}');
-    return null;
+  }
+
+  static Future<Map<String, dynamic>?> ForgotPasswordFirebase(String email) async {
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      return {
+        'status': 'success', 
+        'message': 'Email reset password telah dikirim'
+      };
+    } catch (e) {
+      return {
+        'status': 'error', 
+        'message': 'Gagal mengirim email reset: $e'
+      };
+    }
   }
 
   static Future<Map<String, dynamic>?> register(
@@ -280,5 +328,25 @@ class UserApi {
   static String _decodeBase64(String str) {
     String normalized = base64Url.normalize(str);
     return utf8.decode(base64Url.decode(normalized));
+  }
+
+  // Tambahkan fungsi ini di userApi.dart untuk testing
+  static Future<void> testLogin(String email, String password) async {
+    try {
+      final response = await http.post(
+        Server.urlLaravel("mobile/users/login"),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'password': password,
+        }),
+      );
+      
+      print('Laravel login test - Status: ${response.statusCode}');
+      print('Laravel login test - Response: ${response.body}');
+      
+    } catch (e) {
+      print('Laravel login test error: $e');
+    }
   }
 }

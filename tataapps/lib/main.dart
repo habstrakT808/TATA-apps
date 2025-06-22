@@ -14,12 +14,16 @@ import 'package:TATA/src/bottomnav.dart';
 import 'firebase_options.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 
 // Key global untuk navigasi di seluruh aplikasi
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Preload asset manifest to avoid "AssetManifest.bin.json" error
+  await _preloadAssets();
   
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -37,6 +41,17 @@ void main() async {
   await UserPreferences.init();
   
   runApp(const MyApp());
+}
+
+// Function to preload assets
+Future<void> _preloadAssets() async {
+  try {
+    // Force load the asset manifest
+    await rootBundle.loadString('AssetManifest.json');
+    debugPrint('Asset manifest loaded successfully');
+  } catch (e) {
+    debugPrint('Error loading asset manifest: $e');
+  }
 }
 
 class MyApp extends StatelessWidget {

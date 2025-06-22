@@ -1,0 +1,21 @@
+Implementation steps for RBAC system:
+
+1. Create migration to modify the role column in the auth table to use enum values
+
+2. Update Auth model with role-related methods and constants
+
+3. Update Authorization middleware to handle role-based access
+
+4. Create RoleMiddleware for role-based route protection
+
+5. Update Kernel.php to register the RoleMiddleware
+
+6. Create RoleController for managing user roles
+
+7. Update web routes with role-based route protection
+
+8. Update sidebar navigation to show menu items based on user roles
+
+9. Create AdminUserSeeder to seed admin users
+
+10. Run migrations and seeders

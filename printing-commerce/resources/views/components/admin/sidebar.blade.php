@@ -17,6 +17,8 @@
     <!-- Sidebar navigation-->
     <nav class="sidebar-nav scroll-sidebar mt-4" data-simplebar="" style="height: calc(100% - 180px);">
         <ul id="sidebarnav" class="nav flex-column gap-1 p-0">
+            <!-- Dashboard - Untuk Super Admin dan Admin Chat -->
+            @if($userAuth['role'] == 'super_admin' || $userAuth['role'] == 'admin_chat')
             <li class="nav-item sidebar-item {{ $nav == 'dashboard' ? 'selected' : ''}}">
                 <a class="nav-link sidebar-link {{ $nav == 'dashboard' ? 'active' : ''}} d-flex align-items-center py-2" href="/dashboard"
                     aria-expanded="false">
@@ -26,7 +28,10 @@
                     <span class="hide-menu text-white">Dashboard</span>
                 </a>
             </li>
+            @endif
             
+            <!-- Kelola Jasa - Hanya untuk Super Admin -->
+            @if($userAuth['role'] == 'super_admin')
             <li class="nav-item sidebar-item {{ $nav == 'jasa' ? 'selected' : ''}}">
                 <a class="nav-link sidebar-link {{ $nav == 'jasa' ? 'active' : ''}} d-flex align-items-center py-2" href="/jasa" aria-expanded="false">
                     <span class="icon-holder me-2">
@@ -35,7 +40,10 @@
                     <span class="hide-menu text-white">Kelola Jasa</span>
                 </a>
             </li>
+            @endif
             
+            <!-- Kelola Pesanan - Hanya untuk Admin Pesanan -->
+            @if($userAuth['role'] == 'admin_pesanan')
             <li class="nav-item sidebar-item {{ $nav == 'pesanan' ? 'selected' : ''}}">
                 <a class="nav-link sidebar-link {{ $nav == 'pesanan' ? 'active' : ''}} d-flex align-items-center py-2" href="/pesanan"
                     aria-expanded="false">
@@ -45,7 +53,10 @@
                     <span class="hide-menu text-white">Kelola Pesanan</span>
                 </a>
             </li>
+            @endif
 
+            <!-- Metode Pembayaran - Hanya untuk Super Admin -->
+            @if($userAuth['role'] == 'super_admin')
             <li class="nav-item sidebar-item {{ $nav == 'metode-pembayaran' ? 'selected' : ''}}">
                 <a class="nav-link sidebar-link {{ $nav == 'metode-pembayaran' ? 'active' : ''}} d-flex align-items-center py-2" href="/payment-methods"
                     aria-expanded="false">
@@ -55,7 +66,10 @@
                     <span class="hide-menu text-white">Metode Pembayaran</span>
                 </a>
             </li>
+            @endif
 
+            <!-- Kelola User - Hanya untuk Super Admin -->
+            @if($userAuth['role'] == 'super_admin')
             <li class="nav-item sidebar-item {{ $nav == 'user-management' ? 'selected' : ''}}">
                 <a class="nav-link sidebar-link {{ $nav == 'user-management' ? 'active' : ''}} d-flex align-items-center py-2" href="/user-management"
                     aria-expanded="false">
@@ -65,6 +79,7 @@
                     <span class="hide-menu text-white">Kelola User</span>
                 </a>
             </li>
+            @endif
             
             <!-- Logout button moved here, inside the navigation menu -->
             <li class="nav-item sidebar-item mt-3">

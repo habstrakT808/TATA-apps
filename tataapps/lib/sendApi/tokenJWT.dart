@@ -9,7 +9,7 @@ class TokenJwt {
   // Simpan token
   static Future<void> saveToken(String token) async {
     try {
-    final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
       // Simpan token lengkap termasuk Bearer prefix
       String formattedToken = token;
       if (!token.startsWith('Bearer ') && token.isNotEmpty) {
@@ -26,7 +26,7 @@ class TokenJwt {
   // Ambil token
   static Future<String?> getToken() async {
     try {
-    final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(_tokenKey);
       
       // Jika token tidak ada/kosong
@@ -39,6 +39,14 @@ class TokenJwt {
       String formattedToken = token;
       if (!token.startsWith('Bearer ')) {
         formattedToken = 'Bearer $token';
+      } else {
+        // Jika token sudah memiliki Bearer, pastikan formatnya benar
+        // Kadang-kadang token bisa memiliki format "Bearer Bearer token"
+        if (token.startsWith('Bearer Bearer')) {
+          formattedToken = 'Bearer ' + token.substring('Bearer Bearer '.length);
+          // Simpan token yang sudah diperbaiki
+          await saveToken(formattedToken);
+        }
       }
       
       debugPrint("Retrieved token from TokenJWT: ${formattedToken.substring(0, Math.min(20, formattedToken.length))}...");
@@ -58,8 +66,8 @@ class TokenJwt {
   // Hapus token
   static Future<void> clearToken() async {
     try {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_tokenKey);
       debugPrint("Token cleared from TokenJWT");
     } catch (e) {
       debugPrint("Error clearing token: $e");
@@ -68,8 +76,8 @@ class TokenJwt {
 
   static Future<void> saveEmail(String email) async {
     try {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_emailKey, email);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_emailKey, email);
       debugPrint("Email saved: $email");
     } catch (e) {
       debugPrint("Error saving email: $e");
@@ -79,7 +87,7 @@ class TokenJwt {
   // Ambil email
   static Future<String?> getEmail() async {
     try {
-    final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
       final email = prefs.getString(_emailKey);
       if (email == null || email.isEmpty) {
         debugPrint("No email found in TokenJWT");
@@ -96,8 +104,8 @@ class TokenJwt {
   // Hapus email
   static Future<void> clearEmail() async {
     try {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_emailKey);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_emailKey);
       debugPrint("Email cleared");
     } catch (e) {
       debugPrint("Error clearing email: $e");

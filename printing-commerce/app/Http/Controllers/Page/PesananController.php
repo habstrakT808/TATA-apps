@@ -10,23 +10,29 @@ use Carbon\Carbon;
 class PesananController extends Controller
 {
     public function showAll(Request $request){
-        $status = $request->query('status', 'pending');
-        if($status == 'proses'){
-            $status = 'diproses';
+        $status = $request->query('status', 'menunggu');
+        $statusType = 'pengerjaan'; // Selalu gunakan status pengerjaan
+        
+        // Validasi status pengerjaan
+        $validStatusPengerjaan = ['menunggu', 'diproses', 'dikerjakan', 'selesai'];
+        if (!in_array($status, $validStatusPengerjaan)) {
+            $status = 'menunggu'; // Default untuk status pengerjaan
         }
-        $validStatuses = ['pending', 'diproses', 'menunggu_editor', 'dikerjakan', 'revisi', 'selesai', 'dibatalkan'];
-        if (!in_array($status, $validStatuses)) {
-            $status = 'pending';
-        }
+        
         if (!$request->has('status')) {
             return redirect('/pesanan?status='.$status);
         }
+        
         $orderBy = 'asc';
-        $pesananList = Pesanan::select(
+        $pesananQuery = Pesanan::select(
             'pesanan.uuid', 
+            'pesanan.id_pesanan',
             'nama_user', 
-            'status_pesanan', 
+            'status_pesanan',
+            'status_pengerjaan', 
             'estimasi_waktu',
+            'estimasi_mulai',
+            'estimasi_selesai',
             'jasa.kategori',
             'paket_jasa.kelas_jasa',
             'catatan_pesanan.catatan_pesanan as deskripsi'
@@ -35,19 +41,25 @@ class PesananController extends Controller
             ->join('users', 'users.id_user', '=', 'pesanan.id_user')
             ->join('paket_jasa', 'paket_jasa.id_paket_jasa', '=', 'pesanan.id_paket_jasa')
             ->leftJoin('catatan_pesanan', 'catatan_pesanan.id_pesanan', '=', 'pesanan.id_pesanan')
-            ->orderBy('pesanan.created_at', $orderBy)
-            ->where('status_pesanan', $status)
-            ->get();
+            ->orderBy('pesanan.created_at', $orderBy);
+        
+        // Filter berdasarkan status pengerjaan
+        $pesananQuery->where('status_pengerjaan', $status);
+        
+        $pesananList = $pesananQuery->get();
+        
         $pesananList->each(function($pesanan) {
             $latestEditor = $pesanan->editorFiles()->with('editor')->latest('updated_at')->first();
             $pesanan->nama_editor = $latestEditor ? $latestEditor->editor->nama_editor : '-';
         });
+        
         $dataShow = [
             'userAuth' => array_merge(Admin::where('id_auth', $request->user()['id_auth'])->first()->toArray(), ['role' => $request->user()['role']]),
             'dataPesanan' => $pesananList,
             'headerData' => UtilityController::getHeaderData(),
             'currentStatus' => $status,
         ];
+        
         return view('page.pesanan.data',$dataShow);
     }
     public function showDetail(Request $request, $uuid){
@@ -74,17 +86,21 @@ class PesananController extends Controller
                 'maksimal_revisi' => $pesanan->maksimal_revisi ?? 0,
                 'status_pesanan_list' => ['pending' => 'Menunggu Pembayaran', 'diproses' => 'Proses', 'menunggu_editor' => 'Menunggu Editor', 'dikerjakan' => 'Dikerjakan', 'revisi' => 'Revisi', 'selesai' => 'Selesai', 'dibatalkan' => 'Dibatalkan'],
                 'status_pesanan' => $pesanan->status_pesanan,
+                'status_pengerjaan' => $pesanan->status_pengerjaan ?? 'menunggu',
                 'revisi_used' => $pesanan->revisi_used,
                 'sisa_revisi' => $pesanan->revisi_tersisa,
                 'deskripsi' => $pesanan->fromCatatanPesanan->catatan_pesanan ?? '-',
                 'gambar_referensi' => $pesanan->fromCatatanPesanan->gambar_referensi ?? null,
                 'revisi_editor_terbaru' => $pesanan->latestRevision && $pesanan->latestRevision->editorFiles->count() > 0 ? $pesanan->latestRevision->editorFiles->first()->nama_file : null,
+                'file_hasil_desain' => $pesanan->file_hasil_desain,
                 'revisions' => $pesanan->revisions ?? [],
                 'estimasi_waktu' => [
                     'dari' => $pesanan->estimasi_waktu ? Carbon::parse($pesanan->estimasi_waktu)->format('Y-m-d') : null,
                     'sampai' => $pesanan->estimasi_waktu ? Carbon::parse($pesanan->estimasi_waktu)->format('Y-m-d') : null,
                     'durasi' => $pesanan->toPaketJasa->waktu_pengerjaan ?? '-'
                 ],
+                'estimasi_mulai' => $pesanan->estimasi_mulai ? Carbon::parse($pesanan->estimasi_mulai)->format('Y-m-d') : null,
+                'estimasi_selesai' => $pesanan->estimasi_selesai ? Carbon::parse($pesanan->estimasi_selesai)->format('Y-m-d') : null,
                 'id_editor' => $pesanan->id_editor,
                 'status' => ucfirst($pesanan->status_pesanan),
                 'status_raw' => $pesanan->status_pesanan,

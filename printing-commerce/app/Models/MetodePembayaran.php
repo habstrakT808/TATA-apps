@@ -13,19 +13,19 @@ class MetodePembayaran extends Model
 
     protected $table = 'metode_pembayaran';
     protected $primaryKey = 'id_metode_pembayaran';
+    public $timestamps = false; // Table doesn't have timestamps based on test results
 
     protected $fillable = [
         'uuid',
-        'nama_metode',
-        'jenis_metode',
+        'nama_metode_pembayaran',
         'no_metode_pembayaran',
         'deskripsi_1',
         'deskripsi_2',
-        'is_active'
-    ];
-
-    protected $casts = [
-        'is_active' => 'boolean'
+        'thumbnail',
+        'icon',
+        'bahan_poster',
+        'ukuran_poster',
+        'total_harga_poster'
     ];
 
     protected static function boot()

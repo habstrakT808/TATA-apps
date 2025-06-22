@@ -19,6 +19,8 @@
         </ul>
         <div class="navbar-collapse justify-content-end px-0" id="navbarNav">
             <ul class="navbar-nav flex-row ms-auto align-items-center justify-content-end">
+                <!-- Notifikasi pesanan masuk - hanya untuk Admin Pesanan -->
+                @if($userAuth['role'] == 'admin_pesanan')
                 <li class="nav-item dropdown">
                     <a class="nav-link nav-icon-hover rounded-pill" href="javascript:void(0)" id="drop2" data-bs-toggle="dropdown" aria-expanded="false" style="padding-top: 4px; padding-bottom: 4px; padding-left: 12px; padding-right: 12px;">
                         <img src="{{ asset($tPath.'assets2/icon/header/notification.png') }}" alt="" style="width: 42px; height: 42px;">
@@ -53,11 +55,16 @@
                         </div>
                     </div>
                 </li>
+                @endif
+                
+                <!-- Tombol chat - hanya untuk Admin Chat -->
+                @if($userAuth['role'] == 'admin_chat')
                 <a class="nav-link" href="/chat" class="btn btn-outline-primary mx-3 mt-2 d-block">
                     <div class="rounded-pill">
                         <img src="{{ asset($tPath.'assets2/icon/header/chat.png') }}" alt="" style="width: 42px; height: 42px;">
                     </div>
                 </a>
+                @endif
             </ul>
         </div>
     </nav>

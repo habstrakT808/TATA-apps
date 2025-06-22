@@ -13,6 +13,17 @@ class EditorSeeder extends Seeder
     {
         $jsonData = json_decode(file_get_contents(self::$tempFile), true);
         $idEditors = [];
+        
+        // Admin Pengelola pesanan credentials
+        $idEditor = Editor::insertGetId([
+            'uuid' => Str::uuid(),
+            'nama_editor' => 'Admin Pengelola',
+            'email' => 'editor@gmail.com',
+            'jenis_kelamin' => 'laki-laki',
+            'no_telpon' => '085500000000',
+        ]);
+        $idEditors[] = $idEditor;
+        
         for($i = 1; $i <= 5; $i++){
             $nama = "Editor " . $i;
             $idEditor = Editor::insertGetId([

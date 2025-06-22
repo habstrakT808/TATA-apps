@@ -1,7 +1,7 @@
 name: TATA
 description: "A new Flutter project."
 
-publish_to: 'none' 
+publish_to: "none"
 version: 1.0.0+1
 
 environment:
@@ -57,13 +57,13 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
 
-
 flutter:
   uses-material-design: true
 
   assets:
     - assets/images/
     - assets/animations/
+    - assets/fonts/
 
   fonts:
     - family: OdorMeanChey
@@ -98,8 +98,6 @@ flutter:
       fonts:
         - asset: assets/fonts/Chewy-Regular.ttf
           weight: 700
-
-
 
 flutter_icons:
   remove_alpha_ios: true

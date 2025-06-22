@@ -127,7 +127,9 @@ class _PemesananPageState extends State<PemesananPage>
               imageUrl: item.gambarReferensi,
               description: item.desk,
               remainingRevisions: item.revisi,
-              tanggalselesai: item.tanggalselesai,
+              tanggalselesai: item.tanggalselesai.isNotEmpty && 
+                              (item.tanggalselesai.contains('-') || item.tanggalselesai.contains('T')) ? 
+                              item.tanggalselesai : null,
             ),
           ),
         );

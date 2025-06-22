@@ -220,6 +220,130 @@ $tPath = app()->environment('local') ? '' : '';
         }
     }
     </style>
+    <script>
+        // Definisikan variabel global
+        let isAnimating = false;
+        const tPath = '{{ $tPath }}';
+        const csrfToken = '{{ csrf_token() }}';
+        
+        // Definisikan fungsi yang diperlukan sebelum digunakan
+        function showModalDelete(id) {
+            const modalDelete = document.querySelector('#modalDelete');
+            const inpID = document.getElementById('inpID');
+            inpID.value = id;
+            modalDelete.style.display = 'block';
+            animateModalDelete('20%');
+        }
+
+        function animateModalDelete(finalTop) {
+            const deleteForm = document.getElementById('deleteForm');
+            let currentTop = parseInt(deleteForm.style.top) || 0;
+            let increment = currentTop < parseInt(finalTop) ? 1 : -1;
+            function frame() {
+                currentTop += increment;
+                deleteForm.style.top = currentTop + '%';
+                if ((increment === 1 && currentTop >= parseInt(finalTop)) || (increment === -1 && currentTop <= parseInt(finalTop))) {
+                    clearInterval(animationInterval);
+                    if (finalTop === '20%') {
+                        isAnimating = false;
+                    } else {
+                        document.querySelector('#modalDelete').style.display = 'none';
+                    }
+                }
+            }
+            let animationInterval = setInterval(frame, 5);
+        }
+
+        function closeModalDelete() {
+            animateModalDelete('-20%');
+        }
+        
+        // Fungsi popup sederhana untuk fallback
+        function showGreenPopup(message) {
+            const greenPopup = document.querySelector('#greenPopup');
+            if (greenPopup) {
+                greenPopup.innerHTML = `
+                    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1050;"></div>
+                    <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 10px; z-index: 1051; text-align: center;">
+                        <div style="color: green; font-size: 24px; margin-bottom: 10px;">✓</div>
+                        <div>${message}</div>
+                    </div>
+                `;
+                greenPopup.style.display = 'block';
+                setTimeout(() => {
+                    greenPopup.style.display = 'none';
+                    greenPopup.innerHTML = '';
+                }, 2000);
+            }
+        }
+        
+        function showRedPopup(message) {
+            const redPopup = document.querySelector('#redPopup');
+            if (redPopup) {
+                redPopup.innerHTML = `
+                    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1050;"></div>
+                    <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 10px; z-index: 1051; text-align: center;">
+                        <div style="color: red; font-size: 24px; margin-bottom: 10px;">✗</div>
+                        <div>${message}</div>
+                    </div>
+                `;
+                redPopup.style.display = 'block';
+                setTimeout(() => {
+                    redPopup.style.display = 'none';
+                    redPopup.innerHTML = '';
+                }, 2000);
+            }
+        }
+        
+        function showLoading() {
+            document.querySelector("div#preloader").style.display = "block";
+        }
+        
+        function closeLoading() {
+            document.querySelector("div#preloader").style.display = "none";
+        }
+        
+        // Inisialisasi form delete setelah DOM dimuat
+        document.addEventListener('DOMContentLoaded', function() {
+            const deleteForm = document.getElementById('deleteForm');
+            if (deleteForm) {
+                deleteForm.addEventListener('click', function(event) {
+                    event.stopPropagation();
+                });
+                
+                deleteForm.onsubmit = function(event) {
+                    event.preventDefault();
+                    showLoading();
+                    const inpID = document.getElementById('inpID');
+                    const xhr = new XMLHttpRequest();
+                    const requestBody = {
+                        id_pesanan: inpID.value.trim(),
+                    };
+                    xhr.open("DELETE", "/pesanan/delete");
+                    xhr.setRequestHeader("X-CSRF-TOKEN", csrfToken);
+                    xhr.setRequestHeader("Content-Type", "application/json");
+                    xhr.send(JSON.stringify(requestBody));
+                    xhr.onreadystatechange = function() {
+                        if (xhr.readyState == XMLHttpRequest.DONE) {
+                            if (xhr.status === 200) {
+                                closeLoading();
+                                const response = JSON.parse(xhr.responseText);
+                                showGreenPopup(response.message);
+                                setTimeout(() => {
+                                    window.location.reload();
+                                }, 1000);
+                            } else {
+                                closeLoading();
+                                const response = JSON.parse(xhr.responseText);
+                                showRedPopup(response.message);
+                            }
+                        }
+                    };
+                    return false;
+                };
+            }
+        });
+    </script>
 </head>
 
 <body>
@@ -263,8 +387,9 @@ $tPath = app()->environment('local') ? '' : '';
                 <!-- Status filter buttons -->
                 <div class="status-filters mb-3">
                     <div class="d-flex flex-wrap gap-2">
-                        <a href="{{ url('/pesanan?status=menunggu') }}" class="btn {{ $currentStatus == 'pending' ? 'btn-primary' : 'btn-outline-primary' }}">Menunggu</a>
-                        <a href="{{ url('/pesanan?status=proses') }}" class="btn {{ $currentStatus == 'diproses' ? 'btn-primary' : 'btn-outline-primary' }}">Diproses</a>
+                        <h5 class="me-3">Status Pengerjaan:</h5>
+                        <a href="{{ url('/pesanan?status=menunggu') }}" class="btn {{ $currentStatus == 'menunggu' ? 'btn-primary' : 'btn-outline-primary' }}">Menunggu</a>
+                        <a href="{{ url('/pesanan?status=diproses') }}" class="btn {{ $currentStatus == 'diproses' ? 'btn-primary' : 'btn-outline-primary' }}">Diproses</a>
                         <a href="{{ url('/pesanan?status=dikerjakan') }}" class="btn {{ $currentStatus == 'dikerjakan' ? 'btn-primary' : 'btn-outline-primary' }}">Dikerjakan</a>
                         <a href="{{ url('/pesanan?status=selesai') }}" class="btn {{ $currentStatus == 'selesai' ? 'btn-primary' : 'btn-outline-primary' }}">Selesai</a>
                     </div>
@@ -273,7 +398,7 @@ $tPath = app()->environment('local') ? '' : '';
                 <div class="d-flex align-items-stretch">
                     <div class="card w-100">
                         <div class="tab-header">
-                            @if($currentStatus == 'pending')
+                            @if($currentStatus == 'menunggu')
                                 Menunggu
                             @elseif($currentStatus == 'diproses')
                                 Diproses
@@ -306,7 +431,10 @@ $tPath = app()->environment('local') ? '' : '';
                                                 <h6 class="fw-semibold mb-0">Deskripsi Pesanan</h6>
                                             </th>
                                             <th class="border-bottom-0">
-                                                <h6 class="fw-semibold mb-0">Deadline</h6>
+                                                <h6 class="fw-semibold mb-0">Estimasi Mulai</h6>
+                                            </th>
+                                            <th class="border-bottom-0">
+                                                <h6 class="fw-semibold mb-0">Estimasi Selesai</h6>
                                             </th>
                                             @if(in_array($currentStatus, ['dikerjakan', 'selesai']))
                                             <th class="border-bottom-0">
@@ -338,7 +466,10 @@ $tPath = app()->environment('local') ? '' : '';
                                                 <span class="fw-normal">{{ \Illuminate\Support\Str::limit($data['deskripsi'] ?? 'Logo brand makanan, simpel dan modern. Warna hangat, elemen makanan atau alat makan. Harus menarik dan mudah dikenali.', 100, '...') }}</span>
                                             </td>
                                             <td class="border-bottom-0">
-                                                <p class="mb-0 fw-normal">{{ $data['estimasi_waktu']}}</p>
+                                                <p class="mb-0 fw-normal">{{ $data['estimasi_mulai']}}</p>
+                                            </td>
+                                            <td class="border-bottom-0">
+                                                <p class="mb-0 fw-normal">{{ $data['estimasi_selesai']}}</p>
                                             </td>
                                             @if(in_array($currentStatus, ['dikerjakan', 'selesai']))
                                             <td class="border-bottom-0">
@@ -347,11 +478,11 @@ $tPath = app()->environment('local') ? '' : '';
                                             @endif
                                             <td class="border-bottom-0">
                                                 <div class="d-flex">
-                                                    <a href="/pesanan/detail/{{ $data['uuid'] }}" class="btn btn-warning m-1" style="width: 40px; height: 40px; padding: 0; display: flex; align-items: center; justify-content: center;">
-                                                        <img src="{{ asset($tPath.'assets2/icon/edit.svg') }}" alt="Edit" style="width: 20px; height: 20px;">
+                                                    <a href="/pesanan/detail/{{ $data['uuid'] }}" class="btn btn-primary btn-sm m-1">
+                                                        Detail
                                                     </a>
-                                                    <button type="button" class="btn btn-danger m-1" style="width: 40px; height: 40px; padding: 0; display: flex; align-items: center; justify-content: center;" onclick="showModalDelete('{{ $data['uuid'] }}')">
-                                                        <img src="{{ asset($tPath.'assets2/icon/delete.svg') }}" alt="Delete" style="width: 20px; height: 20px;">
+                                                    <button type="button" class="btn btn-danger btn-sm m-1" onclick="showModalDelete('{{ $data['uuid'] }}')">
+                                                        Hapus
                                                     </button>
                                                 </div>
                                             </td>
@@ -377,75 +508,6 @@ $tPath = app()->environment('local') ? '' : '';
     @include('components.preloader')
     <div id="greenPopup" style="display:none"></div>
     <div id="redPopup" style="display:none"></div>
-    <script>
-        const modalDelete = document.querySelector('#modalDelete');
-        const deleteForm = document.getElementById('deleteForm');
-        const inpID = document.getElementById('inpID');
-        let isAnimating = false;
-        deleteForm.addEventListener('click',function(event){
-            event.stopPropagation();
-        });
-        function showModalDelete(id){
-            inpID.value = id;
-            modalDelete.style.display = 'block';
-            animateModalDelete('20%');
-        }
-        function closeModalDelete(){
-            animateModalDelete('-20%');
-        }
-        function animateModalDelete(finalTop) {
-            let currentTop = parseInt(deleteForm.style.top) || 0;
-            let increment = currentTop < parseInt(finalTop) ? 1 : -1;
-            function frame() {
-                currentTop += increment;
-                deleteForm.style.top = currentTop + '%';
-                if ((increment === 1 && currentTop >= parseInt(finalTop)) || (increment === -1 && currentTop <= parseInt(finalTop))) {
-                    clearInterval(animationInterval);
-                    if (finalTop === '20%') {
-                        isAnimating = false;
-                    } else {
-                        modalDelete.style.display = 'none';
-                    }
-                }
-            }
-            let animationInterval = setInterval(frame, 5);
-        }
-        function showLoading() {
-            document.querySelector("div#preloader").style.display = "block";
-        }
-        function closeLoading() {
-            document.querySelector("div#preloader").style.display = "none";
-        }
-        deleteForm.onsubmit = function (event) {
-            event.preventDefault();
-            showLoading();
-            var xhr = new XMLHttpRequest();
-            var requestBody = {
-                id_pesanan: inpID.value.trim(),
-            };
-            xhr.open("DELETE", "/pesanan/delete");
-            xhr.setRequestHeader("X-CSRF-TOKEN", csrfToken);
-            xhr.setRequestHeader("Content-Type", "application/json");
-            xhr.send(JSON.stringify(requestBody));
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState == XMLHttpRequest.DONE) {
-                    if (xhr.status === 200) {
-                        closeLoading();
-                        var response = JSON.parse(xhr.responseText);
-                        showGreenPopup(response.message);
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 1000);
-                    } else {
-                        closeLoading();
-                        var response = JSON.parse(xhr.responseText);
-                        showRedPopup(response.message);
-                    }
-                }
-            };
-            return false;
-        };
-    </script>
     <script src="{{ asset($tPath.'assets/libs/jquery/dist/jquery.min.js') }}"></script>
     <script src="{{ asset($tPath.'assets/libs/bootstrap/dist/js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ asset($tPath.'assets/js/sidebarmenu.js') }}"></script>

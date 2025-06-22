@@ -14,6 +14,7 @@ class AdminSeeder extends Seeder
     public function run(): void
     {
         $ids = [];
+        // Super Admin credentials
         $idAuth = Auth::insertGetId([
             'email' => "SuperAdmin@gmail.com",
             'password'=> Hash::make('Admin@1234567890'),
@@ -24,10 +25,36 @@ class AdminSeeder extends Seeder
             'nama_admin' => 'Super Admin',
             'id_auth' => $idAuth,
         ]);
+
+        // Admin Chat credentials
+        $idAuth = Auth::insertGetId([
+            'email' => "adminchat@gmail.com",
+            'password' => Hash::make('Fansspongebobno2!'),
+            'role' => 'admin_chat',
+        ]);
+        $ids[] = Admin::insertGetId([
+            'uuid' =>  Str::uuid(),
+            'nama_admin' => 'Admin Chat',
+            'id_auth' => $idAuth,
+        ]);
+
+        // Admin Pengelola pesanan credentials
+        $idAuth = Auth::insertGetId([
+            'email' => "editor@gmail.com",
+            'password' => Hash::make('Fansspongebobno2'),
+            'role' => 'admin_pemesanan',
+        ]);
+        $ids[] = Admin::insertGetId([
+            'uuid' =>  Str::uuid(),
+            'nama_admin' => 'Admin Pengelola',
+            'id_auth' => $idAuth,
+        ]);
+
+        // Add additional admin users if needed
         $roles = ['admin_chat', 'admin_pemesanan'];
         foreach($roles as $role){
             $nameRole = ucwords(str_replace('admin_', '', $role));
-            for($i = 1; $i <= 10; $i++){
+            for($i = 1; $i <= 5; $i++){
                 $idAuth = Auth::insertGetId([
                     'email' => "AdminTesting".$nameRole.$i."@gmail.com",
                     'password' => Hash::make('Admin@1234567890'),

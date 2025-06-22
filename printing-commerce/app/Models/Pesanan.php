@@ -11,13 +11,19 @@ class Pesanan extends Model
     protected $keyType = 'integer';
     public $timestamps = true;
     protected $fillable = [
-        'uuid', 'deskripsi', 'status_pesanan', 'total_harga', 'estimasi_waktu', 'maksimal_revisi', 'confirmed_at', 'assigned_at', 'completed_at', 'id_user', 'id_jasa', 'id_paket_jasa', 'id_editor'
+        'uuid', 'deskripsi', 'status_pesanan', 'status_pengerjaan', 'total_harga', 
+        'estimasi_waktu', 'estimasi_mulai', 'estimasi_selesai', 'file_hasil_desain',
+        'maksimal_revisi', 'confirmed_at', 'assigned_at', 'completed_at', 'client_confirmed_at',
+        'id_user', 'id_jasa', 'id_paket_jasa', 'id_editor'
     ];
     protected $casts = [
         'estimasi_waktu' => 'datetime',
+        'estimasi_mulai' => 'date',
+        'estimasi_selesai' => 'date',
         'confirmed_at' => 'datetime',
         'assigned_at' => 'datetime',
         'completed_at' => 'datetime',
+        'client_confirmed_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime'
     ];
@@ -37,7 +43,7 @@ class Pesanan extends Model
     }
     public function fromTransaksi()
     {
-        return $this->hasMany(Transaksi::class, 'id_transaksi');
+        return $this->hasMany(Transaksi::class, 'id_pesanan');
     }
     public function fromReview()
     {

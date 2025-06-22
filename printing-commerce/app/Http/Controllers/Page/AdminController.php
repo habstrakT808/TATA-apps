@@ -29,6 +29,12 @@ class AdminController extends Controller
             });
             $salesData[] = $monthData ? $monthData->total : 0;
         }
+
+        $admin = Admin::where('id_auth', $request->user()['id_auth'])->first();
+        
+        // Periksa apakah admin ditemukan
+        $adminData = $admin ? $admin->toArray() : [];
+        
         $dataShow = [
             'total_pesanan' => Pesanan::where('status_pesanan', 'selesai')->count(),
             'list_pesanan' => Pesanan::where('status_pesanan', 'selesai')
@@ -70,7 +76,7 @@ class AdminController extends Controller
                 }),
             'monthly_sales' => $salesData,
             'headerData' => UtilityController::getHeaderData(),
-            'userAuth' => array_merge(Admin::where('id_auth', $request->user()['id_auth'])->first()->toArray(), ['role' => $request->user()['role']]),
+            'userAuth' => array_merge($adminData, ['role' => $request->user()['role']]),
         ];
         return view('page.dashboard',$dataShow);
     }
@@ -91,17 +97,24 @@ class AdminController extends Controller
                 $item->role = ucwords(str_replace('_', ' ', $item->role));
                 return $item;
             });
+
+        $admin = Admin::where('id_auth', $request->user()['id_auth'])->first();
+        $adminData = $admin ? $admin->toArray() : [];
+        
         $dataShow = [
             'adminData' => $adminData ?? [],
             'headerData' => UtilityController::getHeaderData(),
-            'userAuth' => array_merge(Admin::where('id_auth', $request->user()['id_auth'])->first()->toArray(), ['role' => $request->user()['role']]),
+            'userAuth' => array_merge($adminData, ['role' => $request->user()['role']]),
         ];
         return view('page.admin.data', $dataShow);
     }
     public function showTambah(Request $request){
+        $admin = Admin::where('id_auth', $request->user()['id_auth'])->first();
+        $adminData = $admin ? $admin->toArray() : [];
+        
         $dataShow = [
             'headerData' => UtilityController::getHeaderData(),
-            'userAuth' => array_merge(Admin::where('id_auth', $request->user()['id_auth'])->first()->toArray(), ['role' => $request->user()['role']]),
+            'userAuth' => array_merge($adminData, ['role' => $request->user()['role']]),
         ];
         return view('page.admin.tambah',$dataShow);
     }
@@ -115,10 +128,13 @@ class AdminController extends Controller
             return redirect('/admin')->with('error', 'Data Admin tidak ditemukan');
         }
         
+        $admin = Admin::where('id_auth', $request->user()['id_auth'])->first();
+        $currentAdminData = $admin ? $admin->toArray() : [];
+        
         $dataShow = [
             'adminData' => $adminData,
             'headerData' => UtilityController::getHeaderData(),
-            'userAuth' => array_merge(Admin::where('id_auth', $request->user()['id_auth'])->first()->toArray(), ['role' => $request->user()['role']]),
+            'userAuth' => array_merge($currentAdminData, ['role' => $request->user()['role']]),
         ];
         
         return view('page.admin.edit',$dataShow);

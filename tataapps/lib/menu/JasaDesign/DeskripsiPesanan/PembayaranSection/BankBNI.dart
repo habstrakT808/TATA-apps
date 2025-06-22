@@ -28,6 +28,7 @@ class BNIPaymentPage extends StatefulWidget {
   final String? ukuran;
   final String? bahan;
   final int? jumlahCetak;
+  final String? paymentMethodUuid;
 
   const BNIPaymentPage({
     super.key,
@@ -44,6 +45,7 @@ class BNIPaymentPage extends StatefulWidget {
     this.ukuran,
     this.bahan,
     this.jumlahCetak,
+    this.paymentMethodUuid,
   });
 
   @override
@@ -87,7 +89,7 @@ class _BNIPaymentPageState extends State<BNIPaymentPage> {
     request.fields['id_paket_jasa'] = paketId;
     request.fields['catatan_user'] = widget.deskripsi;
     request.fields['maksimal_revisi'] = int.parse(revisiClean).toString();
-    request.fields['id_metode_pembayaran'] = "9712fbe3-b51e-4b7e-95e6-33566021ed3b";
+    request.fields['id_metode_pembayaran'] = widget.paymentMethodUuid ?? "2c90c02c-ebb5-4b5b-8417-8bdd02ac34a0";
 
     if (kIsWeb && widget.webImageBytes != null) {
       final image = http.MultipartFile.fromBytes(
@@ -157,7 +159,7 @@ class _BNIPaymentPageState extends State<BNIPaymentPage> {
               ukuran: widget.ukuran,
               bahan: widget.bahan,
               jumlahCetak: widget.jumlahCetak,
-              uuidmetodePembayaran: "9712fbe3-b51e-4b7e-95e6-33566021ed3b",
+              uuidmetodePembayaran: widget.paymentMethodUuid ?? "2c90c02c-ebb5-4b5b-8417-8bdd02ac34a0",
               metodePembayaran: "BNI",
             ),
           ),

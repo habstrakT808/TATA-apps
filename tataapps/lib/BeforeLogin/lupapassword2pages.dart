@@ -47,19 +47,25 @@ class _LupaPassword2State extends State<LupaPassword2> {
 
   void startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        if (_timerSeconds > 0) {
-          _timerSeconds--;
-        } else {
-          _isTimerRunning = false;
-          _timer?.cancel();
-        }
-      });
+      if (mounted) {
+        setState(() {
+          if (_timerSeconds > 0) {
+            _timerSeconds--;
+          } else {
+            _isTimerRunning = false;
+            _timer?.cancel();
+          }
+        });
+      } else {
+        _timer?.cancel();
+      }
     });
   }
 
   Future<void> resendOTP() async {
     if (_isSendingOtp) return;
+    if (!mounted) return;
+    
     setState(() {
       _isSendingOtp = true;
       _timerSeconds = 60;
@@ -70,6 +76,9 @@ class _LupaPassword2State extends State<LupaPassword2> {
     // Generate OTP random 6 digit
     final otp = (100000 + (DateTime.now().millisecondsSinceEpoch % 900000)).toString();
     final sent = await EmailJsOtp.sendOtpEmailJS(email: widget.email, otp: otp);
+    
+    if (!mounted) return;
+    
     if (sent) {
       setState(() {
         _sentOtp = otp;
@@ -82,9 +91,12 @@ class _LupaPassword2State extends State<LupaPassword2> {
       });
       print('Gagal mengirim OTP ke EmailJS');
     }
-    setState(() {
-      _isSendingOtp = false;
-    });
+    
+    if (mounted) {
+      setState(() {
+        _isSendingOtp = false;
+      });
+    }
   }
 
   bool isOTPFilled() {
@@ -93,12 +105,19 @@ class _LupaPassword2State extends State<LupaPassword2> {
 
   void validateOTP() async {
     final isValid = pinController.text == _sentOtp;
+    
+    if (!mounted) return;
+    
     setState(() {
       _otpError = isValid ? '' : 'Kode OTP salah atau tidak valid.';
     });
+    
     if (isValid) {
       setState(() => _isLoading = true);
-      Future.delayed(const Duration(seconds: 2), () {
+      
+      Future.delayed(const Duration(seconds: 1), () {
+        if (!mounted) return;
+        
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -185,7 +204,7 @@ class _LupaPassword2State extends State<LupaPassword2> {
                                       children: [
                                         const SizedBox(height: 50),
                                         Center(
-                                          child: Text('Kode Verifikasi',
+                                          child: Text('Verifikasi Code',
                                               style: CustomText.TextArvoBold(
                                                   22, CustomColors.blackColor)),
                                         ),
@@ -212,28 +231,59 @@ class _LupaPassword2State extends State<LupaPassword2> {
                                           Padding(
                                             padding:
                                                 const EdgeInsets.only(top: 8.0),
-                                            child: Text(
-                                              _otpError,
-                                              style: const TextStyle(
-                                                color: Colors.red,
-                                                fontSize: 12,
+                                            child: Center(
+                                              child: Text(
+                                                _otpError,
+                                                style: const TextStyle(
+                                                  color: Colors.red,
+                                                  fontSize: 12,
+                                                ),
                                               ),
                                             ),
                                           ),
+                                        const SizedBox(height: 10),
+                                        Center(
+                                          child: Text(
+                                            'Cek Email kamu',
+                                            style: TextStyle(
+                                              color: CustomColors.HintColor,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 5),
+                                        Center(
+                                          child: Text(
+                                            '00:${_timerSeconds.toString().padLeft(2, '0')}',
+                                            style: TextStyle(
+                                              color: CustomColors.blackColor,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
                                         const SizedBox(height: 20),
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
+                                        Wrap(
+                                          alignment: WrapAlignment.center,
+                                          spacing: 4,
                                           children: [
                                             Text(
-                                              'Waktu tersisa: ${_timerSeconds}s',
-                                              style:
-                                                  const TextStyle(fontSize: 14),
+                                              'Tidak menerima kode?',
+                                              style: TextStyle(
+                                                color: CustomColors.HintColor,
+                                                fontSize: 14,
+                                              ),
+                                              textAlign: TextAlign.center,
                                             ),
                                             TextButton(
                                               onPressed: _isTimerRunning
                                                   ? null
                                                   : resendOTP,
+                                              style: TextButton.styleFrom(
+                                                padding: EdgeInsets.zero,
+                                                minimumSize: Size(50, 30),
+                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              ),
                                               child: Text(
                                                 'Kirim ulang',
                                                 style: TextStyle(
@@ -241,6 +291,7 @@ class _LupaPassword2State extends State<LupaPassword2> {
                                                       ? Colors.grey
                                                       : CustomColors
                                                           .primaryColor,
+                                                  fontWeight: FontWeight.bold,
                                                 ),
                                               ),
                                             ),
@@ -249,38 +300,83 @@ class _LupaPassword2State extends State<LupaPassword2> {
                                         const SizedBox(
                                           height: 80,
                                         ),
-                                        Container(
-                                          alignment: Alignment.bottomCenter,
-                                          child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.end,
-                                            children: [
-                                              Padding(
-                                                padding: const EdgeInsets.only(
-                                                    top: 5, bottom: 20),
-                                                child: Align(
-                                                  alignment: Alignment.center,
-                                                  child: ElevatedButton(
-                                                    style: CustomButton
-                                                        .DefaultButton(
-                                                            CustomColors
-                                                                .primaryColor),
-                                                    onPressed: () {
-                                                      validateOTP();
-                                                      setState(() {});
-                                                    },
-                                                    child: Text("Masuk",
-                                                        style: CustomText
-                                                            .TextArvoBold(
-                                                                18,
-                                                                CustomColors
-                                                                    .whiteColor)),
-                                                  ),
-                                                ),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: CustomColors.primaryColor,
+                                              foregroundColor: Colors.white,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(30),
                                               ),
-                                            ],
+                                              padding: const EdgeInsets.symmetric(vertical: 15),
+                                              elevation: 5,
+                                            ),
+                                            onPressed: _isLoading || !isOTPFilled()
+                                                ? null
+                                                : validateOTP,
+                                            child: _isLoading
+                                                ? SizedBox(
+                                                    width: 20,
+                                                    height: 20,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      color: Colors.white,
+                                                      strokeWidth: 2,
+                                                    ),
+                                                  )
+                                                : Text(
+                                                    "Masuk",
+                                                    style: CustomText.TextArvoBold(
+                                                        18, CustomColors.whiteColor),
+                                                  ),
                                           ),
                                         ),
+                                        const SizedBox(height: 15),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                                            onPressed: () {
+                                              Navigator.pop(context);
+                                            },
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.white,
+                                              foregroundColor: Colors.black,
+                                              side: BorderSide(color: Colors.black, width: 1),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(30),
+                                              ),
+                                              padding: const EdgeInsets.symmetric(vertical: 15),
+                                              elevation: 0,
+                                            ),
+                                            child: Text(
+                                              "Kembali",
+                                              style: CustomText.TextArvoBold(
+                                                  16, CustomColors.blackColor),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 20),
+                                        Wrap(
+                                          alignment: WrapAlignment.center,
+                                          spacing: 4,
+                                          children: [
+                                            Text("Belum Punya Akun?",
+                                                style: CustomText.TextArvo(
+                                                    14, CustomColors.HintColor)),
+                                            GestureDetector(
+                                              onTap: () {
+                                                print("Daftar sekarang ditekan");
+                                              },
+                                              child: Text(
+                                                "Daftar Sekarang",
+                                                style: CustomText.TextArvoBold(
+                                                    14, CustomColors.secondaryColor),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 20),
                                       ],
                                     ),
                                   ),
@@ -299,34 +395,9 @@ class _LupaPassword2State extends State<LupaPassword2> {
         ),
         if (_isLoading)
           Container(
-            color: Colors.black54,
+            color: Colors.black.withOpacity(0.5),
             child: Center(
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Lottie.asset(
-                      'assets/animations/loading.json',
-                      width: 150,
-                      height: 150,
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Mohon Tunggu...',
-                      style: TextStyle(
-                        fontFamily: 'NotoSanSemiBold',
-                        fontSize: 14,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              child: CircularProgressIndicator(),
             ),
           ),
       ],

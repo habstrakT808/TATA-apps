@@ -10,6 +10,9 @@ use App\Http\Controllers\UtilityController;
 use App\Models\User;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+
 class UserController extends Controller
 {
     /**
@@ -65,8 +68,11 @@ class UserController extends Controller
         ]);
     }
     public function logingoogle(Request $request){
-        $validator = Validator::make($request->only('email'), [
+        $validator = Validator::make($request->only('email', 'name', 'photo', 'id_token'), [
             'email' => 'required|email',
+            'name' => 'nullable|string',
+            'photo' => 'nullable|string',
+            'id_token' => 'nullable|string',
         ], [
             'email.required' => 'Email wajib di isi',
             'email.email' => 'Email yang anda masukkan invalid',
@@ -81,35 +87,91 @@ class UserController extends Controller
             return response()->json(['status' => 'error', 'message' => implode(', ', $errors)], 400);
         }
         
-        $auth = Auth::where('email', $request->input('email'))->first();
-        if(!$auth){
-            return response()->json(['status' => 'error','note' => $auth, 'message' => 'Invalid Credentials'], 401);
-        }
-        
-        // Get user details
-        $user = User::where('id_auth', $auth->id_auth)->first();
-        
-        // Create token with abilities for mobile app
-        $token = $auth->createToken('mobile-auth-token', ['mobile-access'])->plainTextToken;
-        
-        // Return token with user info
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Login berhasil',
-            'data' => [
-                'access_token' => $token,
-                'token_type' => 'Bearer',
-                'user' => [
-                    'id' => $user->uuid,
-                    'name' => $user->nama_user,
-                    'email' => $auth->email,
-                    'role' => $auth->role,
-                    'alamat' => $user->alamat,
-                'no_telpon' => $user->no_telpon,
-                'foto' => $user->foto
+        try {
+            // Cari user berdasarkan email
+            $auth = Auth::where('email', $request->input('email'))->first();
+            
+            if(!$auth) {
+                // Jika user belum ada, buat user baru (auto register)
+                $uuid = (string) Str::uuid();
+                
+                // Buat auth record
+                $auth = new Auth();
+                $auth->email = $request->input('email');
+                $auth->password = Hash::make(Str::random(16)); // Generate random password
+                $auth->role = 'user';
+                $auth->save();
+                
+                // Buat user record
+                $user = new User();
+                $user->id_auth = $auth->id_auth;
+                $user->uuid = $uuid;
+                $user->nama_user = $request->input('name') ?? explode('@', $request->input('email'))[0]; // Use name or email prefix
+                
+                // Simpan foto jika ada
+                if ($request->has('photo') && !empty($request->input('photo'))) {
+                    // Gunakan URL foto dari Google
+                    $user->foto = $request->input('photo');
+                }
+                
+                $user->save();
+                
+                Log::info('New user registered via Google: ' . $request->input('email'));
+            } else {
+                // User sudah ada, ambil data user
+                $user = User::where('id_auth', $auth->id_auth)->first();
+                
+                // Jika user tidak ditemukan, buat user baru
+                if (!$user) {
+                    $uuid = (string) Str::uuid();
+                    $user = new User();
+                    $user->id_auth = $auth->id_auth;
+                    $user->uuid = $uuid;
+                    $user->nama_user = $request->input('name') ?? explode('@', $request->input('email'))[0];
+                    
+                    // Simpan foto jika ada
+                    if ($request->has('photo') && !empty($request->input('photo'))) {
+                        $user->foto = $request->input('photo');
+                    }
+                    
+                    $user->save();
+                    Log::info('Created missing user profile for existing auth: ' . $request->input('email'));
+                } 
+                // Optional: Update user photo if provided
+                else if ($request->has('photo') && !empty($request->input('photo')) && ($user->foto === null || $user->foto === '')) {
+                    $user->foto = $request->input('photo');
+                    $user->save();
+                }
+            }
+            
+            // Create token with abilities for mobile app
+            $token = $auth->createToken('google-auth-token', ['mobile-access'])->plainTextToken;
+            
+            // Return token with user info
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Login berhasil',
+                'data' => [
+                    'access_token' => $token,
+                    'token_type' => 'Bearer',
+                    'user' => [
+                        'id' => $user->uuid,
+                        'name' => $user->nama_user,
+                        'email' => $auth->email,
+                        'role' => $auth->role,
+                        'alamat' => $user->alamat ?? '',
+                        'no_telpon' => $user->no_telpon ?? '',
+                        'foto' => $user->foto ?? ''
+                    ]
                 ]
-            ]
-        ]);
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Google login error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ], 500);
+        }
     }
   
   
@@ -174,6 +236,25 @@ public function changePassEmail(Request $request)
     $auth->save();
 
     return response()->json(['status' => 'success', 'message' => 'Password berhasil diperbarui']);
+}
+
+public function verifyCredentials(Request $request)
+{
+    $validator = Validator::make($request->only('email', 'password'), [
+        'email' => 'required|email',
+        'password' => 'required',
+    ]);
+    
+    if ($validator->fails()) {
+        return response()->json(['status' => 'error', 'message' => 'Invalid input'], 400);
+    }
+    
+    $auth = Auth::where('email', $request->input('email'))->first();
+    if (!$auth || !Hash::check($request->input('password'), $auth->password)) {
+        return response()->json(['status' => 'error', 'message' => 'Invalid credentials'], 401);
+    }
+    
+    return response()->json(['status' => 'success', 'message' => 'Credentials valid']);
 }
 
 public function updateProfile(Request $request)
@@ -456,15 +537,37 @@ if ($request->hasFile('foto') && $request->file('foto')->isValid()) {
                     'message' => 'User not found for token'
                 ], 401);
             }
+            
+            Log::info('Refreshing token for user', [
+                'id_auth' => $user->id_auth,
+                'email' => $user->email
+            ]);
 
-            // Hapus semua token yang ada untuk user ini
-            $user->tokens()->delete();
+            // Simpan current token untuk dipertahankan
+            $currentToken = null;
+            if ($request->bearerToken()) {
+                $currentToken = $request->bearerToken();
+            }
+
+            // Hapus semua token kecuali yang sedang digunakan
+            if ($currentToken) {
+                // Hapus token lain, tapi bukan yang sedang digunakan
+                $user->tokens()->where('id', '!=', $user->currentAccessToken()->id)->delete();
+            } else {
+                // Hapus semua token jika tidak ada current token
+                $user->tokens()->delete();
+            }
 
             // Buat token baru
             $token = $user->createToken('mobile-auth-token', ['mobile-access'])->plainTextToken;
 
             // Ambil data user dari tabel 'users'
             $userData = User::where('id_auth', $user->id_auth)->first();
+            
+            Log::info('Token refreshed successfully', [
+                'id_auth' => $user->id_auth,
+                'email' => $user->email
+            ]);
 
             return response()->json([
                 'status' => 'success',
@@ -481,7 +584,9 @@ if ($request->hasFile('foto') && $request->file('foto')->isValid()) {
                 ]
             ]);
         } catch (\Exception $e) {
-            Log::error('Error refreshing token: ' . $e->getMessage());
+            Log::error('Error refreshing token: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to refresh token: ' . $e->getMessage()
@@ -780,28 +885,42 @@ if ($request->hasFile('foto') && $request->file('foto')->isValid()) {
     public function getUserReviews(Request $request)
     {
         try {
-            // Return sample reviews for now
-            $sampleReviews = [
-                [
-                    'id' => '1',
-                    'name' => 'John Doe',
-                    'rating' => 5,
-                    'feedback' => 'Pelayanan sangat memuaskan dan hasil desain bagus!',
-                    'avatar_url' => null
-                ],
-                [
-                    'id' => '2',
-                    'name' => 'Jane Smith',
-                    'rating' => 4,
-                    'feedback' => 'Desain sesuai dengan keinginan, pengerjaan cepat.',
-                    'avatar_url' => null
-                ]
-            ];
+            $reviews = DB::table('review')
+                ->join('pesanan', 'review.id_pesanan', '=', 'pesanan.id_pesanan')
+                ->join('users', 'pesanan.id_user', '=', 'users.id_user')
+                ->join('jasa', 'pesanan.id_jasa', '=', 'jasa.id_jasa')
+                ->join('paket_jasa', 'pesanan.id_paket_jasa', '=', 'paket_jasa.id_paket_jasa')
+                ->select(
+                    'review.id_review as id',
+                    'users.nama_user as name',
+                    DB::raw('CAST(review.rating AS UNSIGNED) as rating'),
+                    DB::raw("CONCAT(jasa.kategori, ', ', paket_jasa.kelas_jasa) as service"),
+                    'review.review as feedback',
+                    'users.foto as avatar',
+                    'pesanan.uuid as order_uuid',
+                    'pesanan.client_confirmed_at as completion_date',
+                    'review.created_at as review_date'
+                )
+                ->orderBy('review.created_at', 'desc')
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'name' => $item->name,
+                        'rating' => (int) $item->rating,
+                        'service' => $item->service,
+                        'feedback' => $item->feedback,
+                        'avatar_url' => $item->avatar ? asset('assets3/img/user/' . $item->avatar) : null,
+                        'order_uuid' => $item->order_uuid,
+                        'completion_date' => $item->completion_date ? Carbon::parse($item->completion_date)->format('d M Y') : null,
+                        'review_date' => Carbon::parse($item->review_date)->format('d M Y')
+                    ];
+                });
             
             return response()->json([
                 'status' => 'success',
                 'message' => 'Review berhasil diambil',
-                'data' => $sampleReviews
+                'data' => $reviews
             ]);
         } catch (\Exception $e) {
             Log::error('Error getting user reviews: ' . $e->getMessage());

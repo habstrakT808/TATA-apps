@@ -9,7 +9,25 @@
     <IfModule mod_headers.c>
         Header set Access-Control-Allow-Origin "*"
         Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-        Header set Access-Control-Allow-Headers "Content-Type, Accept, Authorization, X-Requested-With, Application"
+        Header set Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+        
+        # Handle preflight OPTIONS requests
+        RewriteCond %{REQUEST_METHOD} OPTIONS
+        RewriteRule ^(.*)$ $1 [R=200,L]
+        
+        # Security headers - optimized for Google Sign-In
+        # More permissive CORP policy for Google authentication
+        Header set Cross-Origin-Resource-Policy "cross-origin"
+        # Allow popups for Google Sign-In
+        Header set Cross-Origin-Opener-Policy "same-origin-allow-popups"
+        # Disable COEP for Google authentication to work properly
+        Header unset Cross-Origin-Embedder-Policy
+        
+        # Remove X-Powered-By header
+        Header unset X-Powered-By
+        
+        # Prevent MIME type sniffing
+        Header set X-Content-Type-Options "nosniff"
     </IfModule>
     
     # Handle Authorization Header

@@ -28,6 +28,7 @@ class MandiriPaymentPage extends StatefulWidget {
   final String? ukuran;
   final String? bahan;
   final int? jumlahCetak;
+  final String? paymentMethodUuid;
 
   const MandiriPaymentPage({
     super.key,
@@ -44,6 +45,7 @@ class MandiriPaymentPage extends StatefulWidget {
     this.ukuran,
     this.bahan,
     this.jumlahCetak,
+    this.paymentMethodUuid,
   });
 
   @override
@@ -105,7 +107,7 @@ class _MandiriPaymentPageState extends State<MandiriPaymentPage> {
     request.fields['catatan_user'] = widget.deskripsi;
     request.fields['maksimal_revisi'] = int.parse(revisiClean).toString();
     request.fields['id_metode_pembayaran'] =
-        "e79fcffe-c7dd-4ac1-ac4b-4ef4faef5d37";
+        widget.paymentMethodUuid ?? "0ce1048e-25d2-4fbd-a366-07b660231e2c";
 
     // 🔁 Step 4: Upload gambar (jika ada)
     if (kIsWeb && widget.webImageBytes != null) {
@@ -183,7 +185,7 @@ class _MandiriPaymentPageState extends State<MandiriPaymentPage> {
               ukuran: widget.ukuran,
               bahan: widget.bahan,
               jumlahCetak: widget.jumlahCetak,
-              uuidmetodePembayaran: "e79fcffe-c7dd-4ac1-ac4b-4ef4faef5d37",
+              uuidmetodePembayaran: widget.paymentMethodUuid ?? "0ce1048e-25d2-4fbd-a366-07b660231e2c",
               metodePembayaran: "MANDIRI",
             ),
           ),

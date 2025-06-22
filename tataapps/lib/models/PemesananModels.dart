@@ -37,8 +37,12 @@ class Pemesanan {
           "${capitalize(json['kategori'])}, ${capitalize(json['kelas_jasa'])}",
       tanggal: formatTanggal(json['created_at']),
       total: int.tryParse(json['harga_paket_jasa'].toString()) ?? 0,
-      status: konversiStatus(json['status_pesanan']),
-      tanggalselesai: konversiStatus(json['updated_at'].toString()) ?? "",
+      status: json['status_pengerjaan'] != null ? 
+              konversiStatus(json['status_pengerjaan']) : 
+              konversiStatus(json['status_pesanan']),
+      tanggalselesai: json['updated_at'] != null ? 
+                      (json['updated_at'].toString().contains('-') ? formatTanggal(json['updated_at']) : '') : 
+                      "",
     );
   }
 
@@ -48,9 +52,14 @@ class Pemesanan {
   }
 
   static String formatTanggal(String tanggal) {
-    final date = DateTime.tryParse(tanggal);
-    if (date == null) return '';
-    return "${date.day} ${_namaBulan(date.month)}";
+    try {
+      final date = DateTime.tryParse(tanggal);
+      if (date == null) return '';
+      return "${date.day} ${_namaBulan(date.month)}";
+    } catch (e) {
+      print("Error formatting date: $e");
+      return '';
+    }
   }
 
   static String _namaBulan(int bulan) {

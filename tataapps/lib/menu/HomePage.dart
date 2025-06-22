@@ -112,24 +112,40 @@ class _HomePageState extends State<HomePage> {
         print('RESPONSE BODY: $responseBody');
         
         final decodedData = json.decode(responseBody);
+        print('DECODED DATA: $decodedData');
         
         // Handle different response structures
-        List<dynamic> reviewsData;
+        List<dynamic> reviewsData = [];
         if (decodedData is Map<String, dynamic>) {
           if (decodedData.containsKey('data')) {
             reviewsData = decodedData['data'] as List<dynamic>;
+            print('Found reviews in data field: ${reviewsData.length}');
           } else if (decodedData.containsKey('reviews')) {
             reviewsData = decodedData['reviews'] as List<dynamic>;
+            print('Found reviews in reviews field: ${reviewsData.length}');
           } else {
+            print('No reviews field found in response');
             reviewsData = [];
           }
         } else if (decodedData is List) {
           reviewsData = decodedData;
+          print('Response is directly a list: ${reviewsData.length}');
         } else {
+          print('Unexpected response format: ${decodedData.runtimeType}');
           reviewsData = [];
         }
         
-        return reviewsData.map((json) => Review.fromJson(json)).toList();
+        final reviews = reviewsData.map((json) {
+          try {
+            return Review.fromJson(json);
+          } catch (e) {
+            print('Error parsing review: $e for data: $json');
+            return null;
+          }
+        }).where((review) => review != null).cast<Review>().toList();
+        
+        print('PARSED REVIEWS: ${reviews.length}');
+        return reviews;
       } else if (response.statusCode == 404) {
         print('ERROR: Review endpoint not found (404)');
         return [];
@@ -138,6 +154,7 @@ class _HomePageState extends State<HomePage> {
         return [];
       } else {
         print('ERROR: Failed to load reviews with status ${response.statusCode}');
+        print('ERROR BODY: ${response.body}');
         return [];
       }
     } catch (e) {
@@ -455,6 +472,113 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildReviewCard({
+    required BuildContext context,
+    required String name,
+    required int rating,
+    required String feedback,
+    String? avatarUrl,
+    String? service,
+    String? reviewDate,
+    double? width,
+  }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360;
+    
+    return Container(
+      width: width ?? 250,
+      margin: EdgeInsets.only(right: screenWidth * 0.03), // 3% of screen margin
+      padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 5,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              avatarUrl != null && avatarUrl.isNotEmpty
+                  ? CircleAvatar(
+                      backgroundImage: NetworkImage(Server.UrlImageProfil(avatarUrl)),
+                      radius: isSmallScreen ? 16 : 20,
+                    )
+                  : CircleAvatar(
+                      child: Icon(Icons.person, size: isSmallScreen ? 16 : 20),
+                      radius: isSmallScreen ? 16 : 20,
+                      backgroundColor: CustomColors.threertyColor.withOpacity(0.7),
+                    ),
+              SizedBox(width: isSmallScreen ? 6 : 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: isSmallScreen ? 13 : 14,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (service != null)
+                      Text(
+                        service,
+                        style: TextStyle(
+                          fontSize: isSmallScreen ? 10 : 11,
+                          color: Colors.grey[600],
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              )
+            ],
+          ),
+          SizedBox(height: isSmallScreen ? 6 : 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: List.generate(
+                  5,
+                  (index) => Icon(
+                    index < rating ? Icons.star : Icons.star_border,
+                    color: index < rating ? Colors.amber : Colors.grey,
+                    size: isSmallScreen ? 14 : 16,
+                  ),
+                ),
+              ),
+              if (reviewDate != null)
+                Text(
+                  reviewDate,
+                  style: TextStyle(
+                    fontSize: isSmallScreen ? 10 : 11,
+                    color: Colors.grey[600],
+                  ),
+                ),
+            ],
+          ),
+          SizedBox(height: isSmallScreen ? 6 : 8),
+          Text(
+            feedback,
+            style: TextStyle(fontSize: isSmallScreen ? 11 : 13),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 3,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildReviewList(BuildContext context, List<Review> reviews, {bool isPlaceholder = false}) {
     final screenWidth = MediaQuery.of(context).size.width;
     final reviewCardWidth = screenWidth * 0.7; // 70% of screen width for review cards
@@ -487,85 +611,13 @@ class _HomePageState extends State<HomePage> {
                 rating: review.rating,
                 feedback: review.feedback,
                 avatarUrl: review.avatarUrl,
+                service: review.service,
+                reviewDate: review.reviewDate,
                 width: reviewCardWidth,
               ),
             ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildReviewCard({
-    required BuildContext context,
-    required String name,
-    required int rating,
-    required String feedback,
-    String? avatarUrl,
-    double? width,
-  }) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isSmallScreen = screenWidth < 360;
-    
-    return Container(
-      width: width ?? 250,
-      margin: EdgeInsets.only(right: screenWidth * 0.03), // 3% of screen margin
-      padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              avatarUrl != null && avatarUrl.isNotEmpty
-                  ? CircleAvatar(
-                      backgroundImage: NetworkImage(Server.UrlImageProfil(avatarUrl)),
-                      radius: isSmallScreen ? 16 : 20,
-                    )
-                  : CircleAvatar(
-                      child: Icon(Icons.person, size: isSmallScreen ? 16 : 20),
-                      radius: isSmallScreen ? 16 : 20,
-                    ),
-              SizedBox(width: isSmallScreen ? 6 : 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: isSmallScreen ? 13 : 14,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              )
-            ],
-          ),
-          SizedBox(height: isSmallScreen ? 6 : 8),
-          Row(
-            children: List.generate(
-              5,
-              (index) => Icon(
-                index < rating ? Icons.star : Icons.star_border,
-                color: index < rating ? Colors.amber : Colors.grey,
-                size: isSmallScreen ? 14 : 16,
-              ),
-            ),
-          ),
-          SizedBox(height: isSmallScreen ? 6 : 8),
-          Text(
-            feedback,
-            style: TextStyle(fontSize: isSmallScreen ? 11 : 13),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 3,
-          ),
-        ],
       ),
     );
   }

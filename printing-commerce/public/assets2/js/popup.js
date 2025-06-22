@@ -2,72 +2,79 @@ const redPopup = document.querySelector("div#redPopup");
 const greenPopup = document.querySelector("div#greenPopup");
 var isPopupVisible = false;
 function showGreenPopup(message, div = null) {
-    if (div == "dashboard") {
-        greenPopup.innerHTML = `
-            <div class="bg" onclick="closePopup('green',true)"></div>
-            <div class="kotak">
-                <img class="kotak" src="${ window.location.origin + tPath }/assets2/icon/popup/check.svg" alt="">
-            </div>
-            <img class="closePopup" onclick="closePopup('green',true)" src="${ window.location.origin + tPath }/assets2/icon/popup/close.svg" alt="">
-            <label>${message}</label>
-        `;
-        greenPopup.style.display = "block";
-        setTimeout(() => {
-            window.location.href = "/dashboard";
-        }, 2000);
-    } else {
-        greenPopup.innerHTML = `
-                <div class="bg" onclick="closePopup('green',true)"></div>
-                <img class="kotak" src="${ window.location.origin + tPath }/assets2/icon/popup/check.svg" alt="">
-                <img class="closePopup" onclick="closePopup('green',true)" src="${ window.location.origin + tPath }/assets2/icon/popup/close.svg" alt="">
-                <label>${message}</label>
-            `;
-        greenPopup.style.display = "block";
-        setTimeout(() => {
-            // closePopup("green");
-        }, 1000);
+    if (typeof div === "string") {
+        console.log(
+            "Using deprecated showGreenPopup with hardcoded redirect. Use showSuccessAndRedirect instead."
+        );
     }
+
+    greenPopup.innerHTML = `
+        <div class="bg" onclick="closePopup('green',true)"></div>
+        <img class="kotak" src="${
+            window.location.origin + tPath
+        }/assets2/icon/popup/check.svg" alt="">
+        <img class="closePopup" onclick="closePopup('green',true)" src="${
+            window.location.origin + tPath
+        }/assets2/icon/popup/close.svg" alt="">
+        <label>${message}</label>
+    `;
+    greenPopup.style.display = "block";
+    setTimeout(() => {
+        // closePopup("green");
+    }, 1000);
 }
 function showRedPopup(message, div) {
     if (div == "otp" && !isPopupVisible) {
         redPopup.innerHTML = `
             <div class="bg" onclick="closePopup('red',true)"></div>
-            <img class="kotak" onclick="closePopup('red', true)" src="${ window.location.origin + tPath }/assets2/icon/popup/error.svg" alt="">
-            <img class="closePopup" onclick="closePopup('red',true)" src="${ window.location.origin + tPath }/assets2/icon/popup/close.svg" alt="">
+            <img class="kotak" onclick="closePopup('red', true)" src="${
+                window.location.origin + tPath
+            }/assets2/icon/popup/error.svg" alt="">
+            <img class="closePopup" onclick="closePopup('red',true)" src="${
+                window.location.origin + tPath
+            }/assets2/icon/popup/close.svg" alt="">
             <label>${message}</label>
         `;
         redPopup.style.display = "block";
         showDiv(div);
         isPopupVisible = true;
         setTimeout(() => {
-            closePopup('red');
+            closePopup("red");
             isPopupVisible = false;
         }, 1000);
     } else if (!isPopupVisible) {
         if (message) {
             redPopup.innerHTML = `
                 <div class="bg" onclick="closePopup('red',true)"></div>
-                <img class="kotak" onclick="closePopup('red', true)" src="${ window.location.origin + tPath }/assets2/icon/popup/error.svg" alt="">
-                <img class="closePopup" onclick="closePopup('red',true)" src="${ window.location.origin + tPath }/assets2/icon/popup/close.svg" alt="">
+                <img class="kotak" onclick="closePopup('red', true)" src="${
+                    window.location.origin + tPath
+                }/assets2/icon/popup/error.svg" alt="">
+                <img class="closePopup" onclick="closePopup('red',true)" src="${
+                    window.location.origin + tPath
+                }/assets2/icon/popup/close.svg" alt="">
                 <label>${message}</label>
             `;
             redPopup.style.display = "block";
             isPopupVisible = true;
             setTimeout(() => {
-                closePopup('red');
+                closePopup("red");
                 isPopupVisible = false;
             }, 1000);
         } else {
             redPopup.innerHTML = `
                 <div class="bg" onclick="closePopup('red',true)"></div>
-                <img class="kotak" onclick="closePopup('red', true)" src="${ window.location.origin + tPath }/assets2/icon/popup/error.svg" alt="">
-                <img class="closePopup" onclick="closePopup('red', true)" src="${ window.location.origin + tPath }/assets2/icon/popup/close.svg" alt="">
+                <img class="kotak" onclick="closePopup('red', true)" src="${
+                    window.location.origin + tPath
+                }/assets2/icon/popup/error.svg" alt="">
+                <img class="closePopup" onclick="closePopup('red', true)" src="${
+                    window.location.origin + tPath
+                }/assets2/icon/popup/close.svg" alt="">
                 <label>${data}</label>
             `;
             redPopup.style.display = "block";
             isPopupVisible = true;
             setTimeout(() => {
-                closePopup('red');
+                closePopup("red");
                 isPopupVisible = false;
             }, 1000);
         }

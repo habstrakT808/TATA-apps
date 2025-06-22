@@ -21,6 +21,7 @@ import 'package:TATA/src/CustomText.dart';
 // import 'package:TATA/navigation/utama.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
+import 'dart:math' as Math;
 
 // import 'package:google_sign_in/google_sign_in.dart';
 
@@ -56,51 +57,70 @@ class _page_login extends State<page_login> {
       }
       
       try {
-        // Login menggunakan Firebase Authentication
-        final userCredential = await _authService.signInWithEmailPassword(
+        // Login menggunakan sistem hybrid
+        final result = await _authService.signInWithEmailPasswordHybrid(
           emailController.text,
           passwordController.text,
         );
         
-        // Login berhasil
         Navigator.pop(context); // Tutup dialog loading
-        isWrong = false;
         
-        // Verifikasi token tersimpan dengan baik
-        final userData = await UserPreferences.getUser();
-        print('Stored user data: ${userData != null ? 'Data ada' : 'Data tidak ada'}');
-        
-        // Navigasi ke halaman utama
-        CustomWidget.NotifBerhasilLogin(context, MainPage());
-        
-        if (userData != null && userData['user'] != null) {
-          page_login.id_user = userData['user']['id'].toString();
-          print("id user = ${userData['user']['id']}");
-        }
-      } on FirebaseAuthException catch (e) {
-        Navigator.pop(context);
-        setState(() {
-          isWrong = true;
+        if (result['status'] == 'success') {
+          // Login berhasil
+          isWrong = false;
           
-          switch (e.code) {
-            case 'user-not-found':
-              errorText = "Email tidak terdaftar!";
-              break;
-            case 'wrong-password':
-              errorText = "Password salah!";
-              break;
-            case 'invalid-email':
-              errorText = "Format email tidak valid!";
-              break;
-            case 'user-disabled':
-              errorText = "Akun telah dinonaktifkan!";
-              break;
-            default:
-              errorText = "Gagal login: ${e.message}";
+          // Tampilkan pesan sesuai metode yang berhasil
+          String successMessage = result['message'] ?? 'Login berhasil';
+          if (result.containsKey('warning')) {
+            print('Warning: ${result['warning']}');
           }
           
-          sizeerror = 14;
-        });
+          final userData = await UserPreferences.getUser();
+          print('Login method: ${result['method']}');
+          print('Stored user data: ${userData != null ? 'Data ada' : 'Data tidak ada'}');
+          
+          // Navigasi ke halaman utama
+          CustomWidget.NotifBerhasilLogin(context, MainPage());
+          
+          // Set user ID
+          if (userData != null) {
+            if (userData['data'] != null && userData['data']['user'] != null) {
+              page_login.id_user = userData['data']['user']['id'].toString();
+              print("id user = ${userData['data']['user']['id']}");
+            } else if (userData['user'] != null) {
+              page_login.id_user = userData['user']['id'].toString();
+              print("id user = ${userData['user']['id']}");
+            }
+          }
+          
+          // Tampilkan notifikasi jika ada warning
+          if (result.containsKey('warning')) {
+            Future.delayed(Duration(seconds: 2), () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Info: ${result['warning']}'),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            });
+          }
+        } else {
+          // Login gagal
+          setState(() {
+            isWrong = true;
+            errorText = result['message'] ?? 'Login gagal';
+            sizeerror = 14;
+          });
+          
+          // Debug info
+          if (result.containsKey('firebase_error')) {
+            print('Firebase error: ${result['firebase_error']}');
+          }
+          if (result.containsKey('laravel_error')) {
+            print('Laravel error: ${result['laravel_error']}');
+          }
+        }
       } catch (e) {
         Navigator.pop(context);
         setState(() {
@@ -108,11 +128,12 @@ class _page_login extends State<page_login> {
           errorText = "Gagal login: $e";
           sizeerror = 14;
         });
+        print("Login error: $e");
       }
     } catch (e) {
       Navigator.pop(context);
       CustomWidget.NotifGagal(context);
-      print("Error: $e");
+      print("General error: $e");
     }
   }
 
@@ -121,30 +142,67 @@ class _page_login extends State<page_login> {
       CustomWidget.NotifLoading(context);
       
       try {
-        // Login dengan Google menggunakan Firebase Authentication
-        final userCredential = await _authService.signInWithGoogle();
+        // Google login menggunakan sistem hybrid
+        final result = await _authService.signInWithGoogleHybrid();
         
-        // Login berhasil
         Navigator.pop(context); // Tutup dialog loading
         
-        // Verifikasi data tersimpan
-        final userData = await UserPreferences.getUser();
-        
-        if (userData != null && userData['user'] != null) {
-          page_login.id_user = userData['user']['id'].toString();
-          print("id user = ${userData['user']['id']}");
+        if (result['status'] == 'success') {
+          // Login berhasil
+          final userData = await UserPreferences.getUser();
+          print('Google login method: ${result['method']}');
+          print('Google login user data: $userData');
           
-          // Navigasi ke halaman utama
-          CustomWidget.NotifBerhasilLogin(context, MainPage());
+          if (userData != null) {
+            // Set user ID
+            if (userData['data'] != null && userData['data']['user'] != null) {
+              page_login.id_user = userData['data']['user']['id'].toString();
+            } else if (userData['user'] != null) {
+              page_login.id_user = userData['user']['id'].toString();
+            }
+            
+            print("Google login berhasil, id user = ${page_login.id_user}");
+            
+            // Navigasi ke halaman utama
+            CustomWidget.NotifBerhasilLogin(context, MainPage());
+            
+            // Tampilkan warning jika ada
+            if (result.containsKey('warning')) {
+              Future.delayed(Duration(seconds: 2), () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Info: ${result['warning']}'),
+                    backgroundColor: Colors.orange,
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+              });
+            }
+          } else {
+            setState(() {
+              isWrong = true;
+              errorText = "Format data user tidak valid";
+              sizeerror = 14;
+            });
+          }
         } else {
           setState(() {
             isWrong = true;
-            errorText = "Gagal mendapatkan data user dari server";
+            errorText = result['message'] ?? 'Google login gagal';
             sizeerror = 14;
           });
+          
+          // Debug info
+          if (result.containsKey('firebase_error')) {
+            print('Google Firebase error: ${result['firebase_error']}');
+          }
+          if (result.containsKey('laravel_error')) {
+            print('Google Laravel error: ${result['laravel_error']}');
+          }
         }
       } catch (e) {
         Navigator.pop(context);
+        print('Error saat Google login: $e');
         setState(() {
           isWrong = true;
           errorText = "Gagal login dengan Google: $e";
@@ -154,7 +212,7 @@ class _page_login extends State<page_login> {
     } catch (e) {
       Navigator.pop(context);
       CustomWidget.NotifGagal(context);
-      print("Error: $e");
+      print("Google login general error: $e");
     }
   }
 
