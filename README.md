@@ -1,10 +1,15 @@
 # TATA Apps - Aplikasi Cetak dan Desain Online
 
 <div align="center">
-  <img src="tataapps/assets/images/logo-icon.png" alt="TATA Logo" width="200"/>
-  <br>
-  <p><strong>Tempat Anda memesan jasa desain dan cetak dengan mudah, cepat, dan berkualitas</strong></p>
+
+  <img src="https://github.com/user-attachments/assets/1edc1ba4-7bff-4639-ae09-7aa979f0fd02" alt="TATA Logo" width="200"/>
+  
+  <br><br>
+  
+  <strong>Tempat Anda memesan jasa desain dan cetak dengan mudah, cepat, dan berkualitas</strong>
 </div>
+
+---
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.19.0-blue)](https://flutter.dev/)
 [![Laravel](https://img.shields.io/badge/Laravel-10.0-red)](https://laravel.com/)
