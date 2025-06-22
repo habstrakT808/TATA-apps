@@ -15,11 +15,16 @@
 
 - [Tentang Proyek](#tentang-proyek)
 - [Fitur Utama](#fitur-utama)
+- [Persyaratan Sistem](#persyaratan-sistem)
 - [Teknologi yang Digunakan](#teknologi-yang-digunakan)
 - [Struktur Proyek](#struktur-proyek)
 - [Instalasi dan Setup](#instalasi-dan-setup)
   - [Backend (Laravel)](#backend-laravel)
   - [Frontend Mobile (Flutter)](#frontend-mobile-flutter)
+- [Menjalankan Aplikasi](#menjalankan-aplikasi)
+  - [Menjalankan Backend](#menjalankan-backend)
+  - [Menjalankan Frontend](#menjalankan-frontend)
+  - [Build untuk Produksi](#build-untuk-produksi)
 - [Petunjuk Penggunaan](#petunjuk-penggunaan)
 - [Firebase Setup](#firebase-setup)
 - [Troubleshooting](#troubleshooting)
@@ -43,6 +48,40 @@ Aplikasi ini memungkinkan pengguna untuk memesan berbagai layanan desain seperti
 - **Review dan Rating**: Pemberian rating dan ulasan setelah pesanan selesai
 - **Notifikasi**: Notifikasi push untuk update pesanan dan chat
 - **Panel Admin**: Manajemen pesanan, pengguna, dan pembayaran
+
+## 💻 Persyaratan Sistem
+
+### Untuk Pengembangan
+
+- **Backend**:
+
+  - PHP 8.1 atau lebih tinggi
+  - Composer
+  - MySQL 5.7 atau lebih tinggi
+  - Web server (Apache/Nginx)
+  - Laravel 10.x
+
+- **Frontend**:
+  - Flutter SDK 3.19.0 atau lebih tinggi
+  - Dart 3.5.0 atau lebih tinggi
+  - Android Studio / VS Code
+  - Android SDK (untuk pengembangan Android)
+  - Xcode (untuk pengembangan iOS, hanya di macOS)
+  - Git
+
+### Untuk Deployment
+
+- **Backend**:
+
+  - Server dengan PHP 8.1+
+  - MySQL Database
+  - Web server (Apache/Nginx)
+  - SSL Certificate (disarankan)
+
+- **Frontend**:
+  - Google Play Developer Account (untuk Android)
+  - Apple Developer Account (untuk iOS)
+  - Firebase Project
 
 ## 💻 Teknologi yang Digunakan
 
@@ -115,6 +154,23 @@ tataapps/
 
 ## 🚀 Instalasi dan Setup
 
+### Persiapan Awal
+
+1. **Instal Software yang Diperlukan**:
+
+   - [Git](https://git-scm.com/downloads)
+   - [Composer](https://getcomposer.org/download/)
+   - [PHP 8.1+](https://www.php.net/downloads)
+   - [MySQL](https://dev.mysql.com/downloads/mysql/)
+   - [Flutter SDK](https://flutter.dev/docs/get-started/install)
+   - [Android Studio](https://developer.android.com/studio) atau [VS Code](https://code.visualstudio.com/)
+
+2. **Siapkan Environment Flutter**:
+   ```bash
+   flutter doctor
+   ```
+   Pastikan semua persyaratan terpenuhi sebelum melanjutkan.
+
 ### Backend Laravel
 
 1. **Clone Repository:**
@@ -139,6 +195,7 @@ tataapps/
 
 4. **Konfigurasi Database:**
 
+   - Buat database MySQL baru untuk aplikasi
    - Edit file `.env` dengan konfigurasi database Anda:
 
    ```
@@ -147,7 +204,7 @@ tataapps/
    DB_PORT=3306
    DB_DATABASE=tata_app
    DB_USERNAME=root
-   DB_PASSWORD=
+   DB_PASSWORD=your_password
    ```
 
 5. **Migrasi dan Seed Database:**
@@ -157,11 +214,19 @@ tataapps/
    php artisan db:seed
    ```
 
-6. **Jalankan Server:**
+6. **Setup Storage Link:**
+
    ```bash
-   php artisan serve
+   php artisan storage:link
    ```
-   Server akan berjalan di `http://localhost:8000`
+
+7. **Konfigurasi CORS (untuk API):**
+
+   Edit file `config/cors.php` untuk mengizinkan akses dari aplikasi Flutter:
+
+   ```php
+   'allowed_origins' => ['*'], // Untuk pengembangan, ganti dengan domain spesifik untuk produksi
+   ```
 
 ### Frontend Mobile (Flutter)
 
@@ -180,11 +245,19 @@ tataapps/
 3. **Konfigurasi Firebase:**
 
    - Buat proyek di [Firebase Console](https://console.firebase.google.com/)
-   - Tambahkan aplikasi Android dan iOS
-   - Download file konfigurasi (`google-services.json` dan `GoogleService-Info.plist`)
-   - Tempatkan file-file tersebut di lokasi yang sesuai:
-     - `android/app/google-services.json` (untuk Android)
-     - `ios/Runner/GoogleService-Info.plist` (untuk iOS)
+   - Tambahkan aplikasi Android dan iOS:
+
+     **Untuk Android:**
+
+     - Gunakan package name: `com.example.tata` (sesuaikan dengan yang ada di `android/app/build.gradle`)
+     - Download file `google-services.json`
+     - Tempatkan di `android/app/google-services.json`
+
+     **Untuk iOS:**
+
+     - Gunakan bundle ID: `com.example.tata` (sesuaikan dengan yang ada di `ios/Runner.xcodeproj/project.pbxproj`)
+     - Download file `GoogleService-Info.plist`
+     - Tempatkan di `ios/Runner/GoogleService-Info.plist`
 
 4. **Update Server URL:**
 
@@ -194,10 +267,112 @@ tataapps/
    static String baseUrl = 'http://192.168.1.x:8000'; // Ganti dengan IP atau domain server Anda
    ```
 
-5. **Jalankan Aplikasi:**
+5. **Konfigurasi Icon Aplikasi:**
+
+   Icon aplikasi sudah dikonfigurasi di `flutter_launcher_icons.yaml`. Untuk mengupdate icon, jalankan:
+
+   ```bash
+   flutter pub run flutter_launcher_icons
+   ```
+
+## 🚀 Menjalankan Aplikasi
+
+### Menjalankan Backend
+
+1. **Start MySQL Server**:
+
+   Pastikan MySQL server Anda berjalan.
+
+2. **Jalankan Laravel Server:**
+
+   ```bash
+   cd TATA-apps/printing-commerce
+   php artisan serve --host=0.0.0.0
+   ```
+
+   Server akan berjalan di `http://localhost:8000` dan dapat diakses dari perangkat lain di jaringan yang sama.
+
+3. **Cek API Endpoint:**
+
+   Akses `http://localhost:8000/api/check` untuk memastikan API berjalan dengan baik.
+
+### Menjalankan Frontend
+
+1. **Periksa Perangkat Tersedia:**
+
+   ```bash
+   cd TATA-apps/tataapps
+   flutter devices
+   ```
+
+2. **Jalankan di Emulator/Simulator:**
+
    ```bash
    flutter run
    ```
+
+   Atau pilih perangkat spesifik:
+
+   ```bash
+   flutter run -d <device_id>
+   ```
+
+3. **Hot Reload:**
+
+   Saat aplikasi berjalan, tekan `r` di terminal untuk hot reload atau `R` untuk hot restart.
+
+### Build untuk Produksi
+
+#### Android
+
+1. **Buat Keystore (jika belum ada):**
+
+   ```bash
+   keytool -genkey -v -keystore tata.keystore -alias tata -keyalg RSA -keysize 2048 -validity 10000
+   ```
+
+2. **Konfigurasi Keystore:**
+
+   Buat file `android/key.properties` dengan isi:
+
+   ```
+   storePassword=<password>
+   keyPassword=<password>
+   keyAlias=tata
+   storeFile=<path_to_keystore>/tata.keystore
+   ```
+
+3. **Build APK:**
+
+   ```bash
+   flutter build apk --release
+   ```
+
+   File APK akan tersedia di `build/app/outputs/flutter-apk/app-release.apk`
+
+4. **Build App Bundle:**
+
+   ```bash
+   flutter build appbundle --release
+   ```
+
+   File AAB akan tersedia di `build/app/outputs/bundle/release/app-release.aab`
+
+#### iOS (hanya di macOS)
+
+1. **Setup Signing:**
+
+   Buka `ios/Runner.xcworkspace` di Xcode dan konfigurasi signing.
+
+2. **Build IPA:**
+
+   ```bash
+   flutter build ios --release
+   ```
+
+3. **Archive di Xcode:**
+
+   Buka Xcode, pilih `Product > Archive` dan ikuti langkah-langkah untuk distribusi.
 
 ## 📱 Petunjuk Penggunaan
 
@@ -240,12 +415,34 @@ tataapps/
    }
    ```
 
-   **CATATAN**: Untuk produksi, gunakan aturan keamanan yang lebih ketat. Lihat dokumentasi di `docs/flutter_chat_implementation.md`.
+   **CATATAN**: Untuk produksi, gunakan aturan keamanan yang lebih ketat.
 
-4. Aktifkan Firebase Authentication dengan metode Email/Password dan Google Sign-In
-5. Aktifkan Firebase Cloud Messaging untuk notifikasi
+4. Aktifkan Firebase Authentication dengan metode Email/Password dan Google Sign-In:
+
+   - Di Firebase Console, pilih Authentication > Sign-in method
+   - Aktifkan Email/Password
+   - Aktifkan Google dan konfigurasi OAuth consent screen
+
+5. Konfigurasi Firebase Cloud Messaging:
+   - Di Firebase Console, pilih Cloud Messaging
+   - Untuk Android, tambahkan Server Key ke backend Laravel di `.env`:
+     ```
+     FCM_SERVER_KEY=your_server_key
+     ```
 
 ## ⚠️ Troubleshooting
+
+### Error Asset Manifest
+
+Jika mengalami error "Unable to load asset: AssetManifest.bin.json":
+
+1. Pastikan semua asset terdaftar dengan benar di `pubspec.yaml`
+2. Jalankan:
+   ```bash
+   flutter clean
+   flutter pub get
+   ```
+3. Restart aplikasi dengan `flutter run`
 
 ### Error Firebase Firestore: Permission Denied
 
@@ -260,8 +457,15 @@ Jika mendapat error "Missing or insufficient permissions":
 Periksa:
 
 1. Token JWT yang digunakan valid
-2. Header Authorization diset dengan benar
+2. Header Authorization diset dengan benar:
+   ```dart
+   headers: {
+     'Authorization': 'Bearer $token',
+     'Content-Type': 'application/json',
+   }
+   ```
 3. User memiliki izin yang cukup
+4. Cek expiry time token di backend
 
 ### Error Flutter Build: Gradle Failure
 
@@ -270,8 +474,18 @@ Periksa:
 3. Jalankan:
    ```bash
    flutter clean
+   cd android
+   ./gradlew clean
+   cd ..
    flutter pub get
    ```
+
+### Error Koneksi API
+
+1. Pastikan URL server benar di `lib/sendApi/Server.dart`
+2. Jika menggunakan localhost/127.0.0.1 di emulator Android, ganti dengan `10.0.2.2`
+3. Jika menggunakan perangkat fisik, pastikan perangkat dan server berada dalam jaringan yang sama
+4. Cek firewall dan pengaturan CORS di server
 
 ## 🤝 Kontribusi
 
