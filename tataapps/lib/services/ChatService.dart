@@ -22,7 +22,7 @@ class ChatService {
       debugPrint('Using token: ${token.substring(0, 20)}...');
       
       final response = await http.get(
-        Server.urlLaravel('mobile/chat/messages/order/$orderReference'),
+        Server.urlLaravel('chat/messages/order/$orderReference'),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
@@ -73,7 +73,7 @@ class ChatService {
       debugPrint('File URL: $fileUrl');
       
       final response = await http.post(
-        Server.urlLaravel('mobile/chat/send-by-pesanan'),
+        Server.urlLaravel('chat/send-by-pesanan'),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
@@ -120,7 +120,7 @@ class ChatService {
       }
       
       final response = await http.post(
-        Server.urlLaravel('mobile/chat/mark-read'),
+        Server.urlLaravel('chat/mark-read'),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',

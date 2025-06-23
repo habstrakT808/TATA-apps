@@ -51,13 +51,11 @@ class _ProfileScreenState extends State<Akunpage> {
 
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
-  final TextEditingController addressController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
 
   String imageProfil = "";
   String nameLama = "";
   String emailLama = "";
-  String addressLama = "";
   String phoneLama = "";
 
   Future<void> fetchUserProfile() async {
@@ -100,11 +98,9 @@ class _ProfileScreenState extends State<Akunpage> {
           imageProfil = userInfo!['foto'] ?? '';
           nameController.text = userInfo!['name'] ?? '';
           emailController.text = userInfo!['email'] ?? '';
-          addressController.text = userInfo!['alamat'] ?? '';
           phoneController.text = userInfo!['no_telpon'] ?? '';
           nameLama = userInfo!['name'] ?? '';
           emailLama = userInfo!['email'] ?? '';
-          addressLama = userInfo!['alamat'] ?? '';
           phoneLama = userInfo!['no_telpon'] ?? '';
           isLoading = false;
         });
@@ -171,7 +167,6 @@ class _ProfileScreenState extends State<Akunpage> {
       });
 
       request.fields['nama_user'] = nameController.text;
-      request.fields['alamat'] = addressController.text;
       request.fields['no_telpon'] = phoneController.text;
       request.fields['email'] = emailController.text;
 
@@ -286,7 +281,6 @@ class _ProfileScreenState extends State<Akunpage> {
     setState(() {
       nameController.text = nameLama;
       emailController.text = emailLama;
-      addressController.text = addressLama;
       phoneController.text = phoneLama;
       isEditing = false;
     });
@@ -544,11 +538,6 @@ class _ProfileScreenState extends State<Akunpage> {
                             kerboardType: TextInputType.emailAddress,
                             icon: Icons.email,
                             controller: emailController,
-                            enabled: isEditing),
-                        buildInputField(
-                            kerboardType: TextInputType.text,
-                            icon: Icons.location_on,
-                            controller: addressController,
                             enabled: isEditing),
                         buildInputField(
                             kerboardType: TextInputType.number,

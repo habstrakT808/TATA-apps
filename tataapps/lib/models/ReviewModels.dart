@@ -22,16 +22,21 @@ class Review {
   });
 
   factory Review.fromJson(Map<String, dynamic> json) {
+    print('Parsing review JSON: $json');
+    
+    final avatarUrl = json['avatar_url']?.toString();
+    print('Avatar URL from JSON: $avatarUrl');
+    
     return Review(
       id: json['id']?.toString() ?? '',
-      name: json['name'] ?? '',
-      rating: json['rating'] ?? 5,
-      feedback: json['feedback'] ?? '',
-      avatarUrl: json['avatar_url'],
-      service: json['service'],
-      orderUuid: json['order_uuid'],
-      completionDate: json['completion_date'],
-      reviewDate: json['review_date'],
+      name: json['name']?.toString() ?? 'Pengguna',
+      rating: int.tryParse(json['rating']?.toString() ?? '5') ?? 5,
+      feedback: json['feedback']?.toString() ?? '',
+      avatarUrl: avatarUrl,
+      service: json['service']?.toString(),
+      orderUuid: json['order_uuid']?.toString(),
+      completionDate: json['completion_date']?.toString(),
+      reviewDate: json['review_date']?.toString(),
     );
   }
 }

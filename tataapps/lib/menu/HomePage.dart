@@ -89,14 +89,15 @@ class _HomePageState extends State<HomePage> {
 
   Future<List<Review>> fetchReviews() async {
     try {
-      // Perbaiki endpoint URL
-      final url = Server.urlLaravel('mobile/users/review');
-      print('FETCHING REVIEWS FROM: $url');
+      final url = Server.urlLaravel('mobile/public/reviews');
+      print('FETCHING PUBLIC REVIEWS FROM: $url');
       
-      // Gunakan AuthHelper untuk request yang memerlukan autentikasi
-      final response = await _authHelper.authenticatedRequest(
-        'mobile/users/review',
-        method: 'GET',
+      final response = await Server.httpClient.get(
+        url,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
       ).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
@@ -106,57 +107,47 @@ class _HomePageState extends State<HomePage> {
       );
       
       print('RESPONSE STATUS: ${response.statusCode}');
+      print('RESPONSE BODY: ${response.body}');
       
       if (response.statusCode == 200) {
-        final responseBody = response.body;
-        print('RESPONSE BODY: $responseBody');
+        final decodedData = json.decode(response.body);
         
-        final decodedData = json.decode(responseBody);
-        print('DECODED DATA: $decodedData');
+        // Cek source data
+        final source = decodedData['source'] ?? 'unknown';
+        print('DATA SOURCE: $source');
         
-        // Handle different response structures
         List<dynamic> reviewsData = [];
         if (decodedData is Map<String, dynamic>) {
           if (decodedData.containsKey('data')) {
             reviewsData = decodedData['data'] as List<dynamic>;
-            print('Found reviews in data field: ${reviewsData.length}');
-          } else if (decodedData.containsKey('reviews')) {
-            reviewsData = decodedData['reviews'] as List<dynamic>;
-            print('Found reviews in reviews field: ${reviewsData.length}');
-          } else {
-            print('No reviews field found in response');
-            reviewsData = [];
+            print('Found ${reviewsData.length} reviews from $source');
           }
-        } else if (decodedData is List) {
-          reviewsData = decodedData;
-          print('Response is directly a list: ${reviewsData.length}');
-        } else {
-          print('Unexpected response format: ${decodedData.runtimeType}');
-          reviewsData = [];
+        }
+        
+        if (reviewsData.isEmpty) {
+          print('No real reviews available yet');
+          return []; // Return empty list instead of fallback
         }
         
         final reviews = reviewsData.map((json) {
           try {
-            return Review.fromJson(json);
+            print('Processing review JSON: $json');
+            final review = Review.fromJson(json);
+            print('Created review: ${review.name} with avatar: ${review.avatarUrl}');
+            return review;
           } catch (e) {
             print('Error parsing review: $e for data: $json');
             return null;
           }
         }).where((review) => review != null).cast<Review>().toList();
         
-        print('PARSED REVIEWS: ${reviews.length}');
+        print('Final reviews count: ${reviews.length}');
         return reviews;
-      } else if (response.statusCode == 404) {
-        print('ERROR: Review endpoint not found (404)');
-        return [];
-      } else if (response.statusCode == 401) {
-        print('ERROR: Unauthorized access to reviews');
-        return [];
       } else {
-        print('ERROR: Failed to load reviews with status ${response.statusCode}');
-        print('ERROR BODY: ${response.body}');
+        print('Failed to fetch reviews. Status: ${response.statusCode}');
         return [];
       }
+      
     } catch (e) {
       print('ERROR fetchReviews: $e');
       return [];
@@ -387,31 +378,57 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildInspirasiDesain(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final cardWidth = screenWidth * 0.6; // 60% of screen width
+    final cardWidth = screenWidth * 0.6;
     
     return SizedBox(
-      height: 150,
+      height: 180,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.only(left: screenWidth * 0.05), // 5% of screen padding
+        padding: EdgeInsets.only(left: screenWidth * 0.05),
         children: [
-          _buildInspirasiCard(Server.UrlGambar("atributhomecircle.png"), isAsset: true, width: cardWidth),
-          _buildInspirasiCard(Server.UrlGambar("logoapk.png"), isAsset: true, width: cardWidth),
-          _buildInspirasiCard(Server.UrlGambar("atributhomebigcircle.png"), isAsset: true, width: cardWidth),
+          _buildInspirasiCard("assets/images/inspirasi_desain/design_inspiration1.jpg", width: cardWidth),
+          _buildInspirasiCard("assets/images/inspirasi_desain/design_inspiration2.jpg", width: cardWidth),
+          _buildInspirasiCard("assets/images/inspirasi_desain/design_inspiration3.jpg", width: cardWidth),
         ],
       ),
     );
   }
 
-  Widget _buildInspirasiCard(String imageUrl, {bool isAsset = false, double? width}) {
+  Widget _buildInspirasiCard(String imagePath, {double? width}) {
     return Container(
-      margin: const EdgeInsets.only(right: 10),
+      margin: const EdgeInsets.only(right: 15),
       width: width ?? 200,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        image: DecorationImage(
-          image: isAsset ? AssetImage(imageUrl) : NetworkImage(imageUrl) as ImageProvider,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.asset(
+          imagePath,
           fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            // Fallback jika gambar tidak ditemukan
+            return Container(
+              color: Colors.grey[300],
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.image_not_supported, size: 50, color: Colors.grey[600]),
+                    SizedBox(height: 8),
+                    Text("Gambar tidak tersedia", style: TextStyle(color: Colors.grey[600])),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -430,7 +447,6 @@ class _HomePageState extends State<HomePage> {
           );
         } else if (snapshot.hasError) {
           print('ERROR IN FUTURE BUILDER: ${snapshot.error}');
-          // Display error but with fixed height instead of just text
           return SizedBox(
             height: 170,
             child: Center(
@@ -445,25 +461,28 @@ class _HomePageState extends State<HomePage> {
             ),
           );
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          // Create placeholder reviews if no data
-          final placeholderReviews = [
-            Review(
-              id: '1',
-              name: 'Pengguna Contoh',
-              rating: 5, 
-              feedback: 'Desain keren dan pengerjaan cepat!',
-              avatarUrl: null
+          // Jika tidak ada review, tampilkan pesan kosong
+          return SizedBox(
+            height: 170,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.rate_review_outlined, color: Colors.grey, size: 40),
+                  SizedBox(height: 8),
+                  Text(
+                    'Belum ada ulasan tersedia',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Jadilah yang pertama memberikan ulasan!',
+                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  ),
+                ],
+              ),
             ),
-            Review(
-              id: '2', 
-              name: 'Client Tetap',
-              rating: 4,
-              feedback: 'Hasil desain sangat memuaskan',
-              avatarUrl: null
-            )
-          ];
-          
-          return _buildReviewList(context, placeholderReviews, isPlaceholder: true);
+          );
         }
         
         final reviews = snapshot.data!;
@@ -472,152 +491,136 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildReviewCard({
-    required BuildContext context,
-    required String name,
-    required int rating,
-    required String feedback,
-    String? avatarUrl,
-    String? service,
-    String? reviewDate,
-    double? width,
-  }) {
+  Widget _buildReviewList(BuildContext context, List<Review> reviews) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 360;
-    
-    return Container(
-      width: width ?? 250,
-      margin: EdgeInsets.only(right: screenWidth * 0.03), // 3% of screen margin
-      padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 5,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              avatarUrl != null && avatarUrl.isNotEmpty
-                  ? CircleAvatar(
-                      backgroundImage: NetworkImage(Server.UrlImageProfil(avatarUrl)),
-                      radius: isSmallScreen ? 16 : 20,
-                    )
-                  : CircleAvatar(
-                      child: Icon(Icons.person, size: isSmallScreen ? 16 : 20),
-                      radius: isSmallScreen ? 16 : 20,
-                      backgroundColor: CustomColors.threertyColor.withOpacity(0.7),
-                    ),
-              SizedBox(width: isSmallScreen ? 6 : 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: isSmallScreen ? 13 : 14,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (service != null)
-                      Text(
-                        service,
-                        style: TextStyle(
-                          fontSize: isSmallScreen ? 10 : 11,
-                          color: Colors.grey[600],
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                  ],
-                ),
-              )
-            ],
-          ),
-          SizedBox(height: isSmallScreen ? 6 : 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: List.generate(
-                  5,
-                  (index) => Icon(
-                    index < rating ? Icons.star : Icons.star_border,
-                    color: index < rating ? Colors.amber : Colors.grey,
-                    size: isSmallScreen ? 14 : 16,
-                  ),
-                ),
-              ),
-              if (reviewDate != null)
-                Text(
-                  reviewDate,
-                  style: TextStyle(
-                    fontSize: isSmallScreen ? 10 : 11,
-                    color: Colors.grey[600],
-                  ),
-                ),
-            ],
-          ),
-          SizedBox(height: isSmallScreen ? 6 : 8),
-          Text(
-            feedback,
-            style: TextStyle(fontSize: isSmallScreen ? 11 : 13),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 3,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReviewList(BuildContext context, List<Review> reviews, {bool isPlaceholder = false}) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final reviewCardWidth = screenWidth * 0.7; // 70% of screen width for review cards
     
     return SizedBox(
       height: 170,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.only(left: screenWidth * 0.05), // 5% of screen padding
         itemCount: reviews.length,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         itemBuilder: (context, index) {
           final review = reviews[index];
-          return Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                print("press review");
-                if (!isPlaceholder) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => dr.ReviewDetailPage(review: review),
+          return Container(
+            width: 280,
+            margin: const EdgeInsets.only(right: 16),
+            child: Card(
+              elevation: 4,
+              shadowColor: Colors.black26,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: _buildAvatarImage(review.avatarUrl, isSmallScreen),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                review.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              SizedBox(height: 2),
+                              Row(
+                                children: List.generate(
+                                  5,
+                                  (i) => Icon(
+                                    i < review.rating ? Icons.star : Icons.star_border,
+                                    color: i < review.rating ? Colors.amber : Colors.grey,
+                                    size: 16,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  );
-                }
-              },
-              child: _buildReviewCard(
-                context: context,
-                name: review.name,
-                rating: review.rating,
-                feedback: review.feedback,
-                avatarUrl: review.avatarUrl,
-                service: review.service,
-                reviewDate: review.reviewDate,
-                width: reviewCardWidth,
+                    const SizedBox(height: 12),
+                    Text(
+                      review.feedback,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[700],
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildAvatarImage(String? avatarUrl, bool isSmallScreen) {
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      return Image.network(
+        Server.UrlImageProfil(avatarUrl),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          print('Error loading avatar: $error');
+          return _buildDefaultAvatar(isSmallScreen);
+        },
+      );
+    }
+    return _buildDefaultAvatar(isSmallScreen);
+  }
+
+  Widget _buildDefaultAvatar(bool isSmallScreen) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [
+            CustomColors.threertyColor.withOpacity(0.8),
+            CustomColors.threertyColor.withOpacity(0.6),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Icon(
+        Icons.person,
+        size: isSmallScreen ? 16 : 20,
+        color: Colors.white,
       ),
     );
   }

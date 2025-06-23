@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:TATA/helper/user_preferences.dart';
 import 'package:TATA/models/ChatModel.dart';
@@ -336,6 +337,112 @@ class ChatService {
     } catch (e) {
       debugPrint('Error fetching messages: $e');
       return null;
+    }
+  }
+
+  // Membuat chat langsung dengan admin dengan konteks produk
+  static Future<Map<String, dynamic>> createDirectChatWithContext(Map<String, dynamic> productContext) async {
+    try {
+      final token = await UserPreferences.getToken();
+      if (token == null) {
+        throw Exception('Token tidak ditemukan');
+      }
+
+      debugPrint('Creating direct chat with product context: $productContext');
+
+      // Debug URL
+      final url = Server.urlLaravel('mobile/chat/create-direct');
+      debugPrint('API URL: $url');
+      debugPrint('Token: ${token.substring(0, math.min(20, token.length))}...');
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': token,
+        },
+        body: jsonEncode({
+          'context_type': 'product_info',
+          'context_data': productContext,
+          'initial_message': 'Halo, saya tertarik dengan produk ini',
+        }),
+      );
+      
+      debugPrint('Response status: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
+      
+      final responseData = jsonDecode(response.body);
+      
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return responseData;
+      } else {
+        return {
+          'status': 'error',
+          'message': responseData['message'] ?? 'Failed to create chat: ${response.statusCode}'
+        };
+      }
+    } catch (e) {
+      debugPrint('Error creating direct chat: $e');
+      return {
+        'status': 'error',
+        'message': 'Error creating direct chat: $e'
+      };
+    }
+  }
+
+  // Metode untuk menguji koneksi API chat secara langsung
+  static Future<Map<String, dynamic>> testChatApi() async {
+    try {
+      final token = await UserPreferences.getToken();
+      if (token == null) {
+        return {
+          'status': 'error',
+          'message': 'Token tidak ditemukan'
+        };
+      }
+
+      // Test direct chat endpoint
+      final directChatResponse = await http.get(
+        Server.urlLaravel('debug/test-direct-chat'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': token,
+        },
+      );
+      
+      // Test routes endpoint
+      final routesResponse = await http.get(
+        Server.urlLaravel('debug/routes'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': token,
+        },
+      );
+      
+      return {
+        'status': 'success',
+        'direct_chat_test': {
+          'status_code': directChatResponse.statusCode,
+          'body': directChatResponse.body.length > 1000 
+              ? directChatResponse.body.substring(0, 1000) + '...' 
+              : directChatResponse.body
+        },
+        'routes_test': {
+          'status_code': routesResponse.statusCode,
+          'body': routesResponse.body.length > 1000 
+              ? routesResponse.body.substring(0, 1000) + '...' 
+              : routesResponse.body
+        }
+      };
+    } catch (e) {
+      debugPrint('Error testing chat API: $e');
+      return {
+        'status': 'error',
+        'message': 'Error testing chat API: $e'
+      };
     }
   }
 } 

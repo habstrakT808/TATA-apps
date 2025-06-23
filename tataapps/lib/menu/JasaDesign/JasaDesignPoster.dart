@@ -21,13 +21,13 @@ class _PosterPackagePageState extends State<JasaDesignPoster>
   late TabController _tabController;
 
   List<Map<String, dynamic>> packages = [];
-  bool isLoading = true;
+  bool isLoading = false; // Set ke false karena kita langsung load dummy data
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    fetchPackages();
+    fetchPackagesInstant(); // Load instant
   }
 
   int _convertToDays(String duration) {
@@ -39,112 +39,96 @@ class _PosterPackagePageState extends State<JasaDesignPoster>
     return 0;
   }
 
-  Future<void> fetchPackages() async {
+  // Method baru untuk instant loading
+  Future<void> fetchPackagesInstant() async {
     try {
-      // Tidak perlu token karena endpoint sudah masuk di guest routes
-      final response = await http.get(
-        Server.urlLaravel('jasa/3'),
-        headers: {
-          'Accept': 'application/json',
-        },
-      ).timeout(
-        const Duration(seconds: 20),
-        onTimeout: () {
-          print('TIMEOUT: Jasa request timed out');
-          return http.Response('{"message":"timeout"}', 408);
-        },
-      );
+      print('Loading poster packages instantly...');
+      
+      // Get data (will return dummy immediately)
+      final data = await Server.getJasaData('3');
+      
+      final jasa = data['jasa'];
+      List<dynamic> paketJasaList = data['paket_jasa'];
 
-      print('RESPONSE STATUS: ${response.statusCode}');
-      print('RESPONSE BODY: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
-
-        if (jsonData['status'] == 'success') {
-          // Ambil data jasa dan paket_jasa dari respons
-          final jasa = jsonData['data']['jasa'];
-          List<dynamic> data = jsonData['data']['paket_jasa'];
-
-          setState(() {
-            packages = data.map<Map<String, dynamic>>((item) {
-              final kelas = item["kelas_jasa"] ?? "-";
-              final waktu = item["waktu_pengerjaan"] ?? "0";
-              return {
-                "id_paket_jasa": item["id_paket_jasa"].toString(),
-                "id_jasa": item["id_jasa"].toString(),
-                "jenis_pesanan": jasa["kategori"] ?? "-",
-                "title": kelas,
-                "price": "Rp ${item["harga_paket_jasa"] ?? "0"}",
-                "duration": "${_convertToDays(waktu)} hari",
-                "revision": "${item["maksimal_revisi"]}x",
-                "konsep": "2 Konsep",
-                "poster_transparan": true,
-                "konsep_simple": kelas == "basic",
-                "konsep_premium": kelas == "standard" || kelas == "premium",
-                "konsep_3d": kelas == "premium",
-              };
-            }).toList();
-
-            isLoading = false;
-          });
-        } else {
-          throw Exception("API returned error: ${jsonData['message']}");
-        }
-      } else {
-        throw Exception("Failed to fetch data, status code: ${response.statusCode}");
-      }
-    } catch (e) {
-      print("Error fetching packages: $e");
-      // Tambahkan data dummy untuk testing jika API gagal
       setState(() {
-        packages = [
-          {
-            "id_paket_jasa": "7",
-            "id_jasa": "3",
-            "jenis_pesanan": "Poster",
-            "title": "basic",
-            "price": "Rp 100000",
-            "duration": "3 hari",
-            "revision": "2x",
+        packages = paketJasaList.map<Map<String, dynamic>>((item) {
+          final kelas = item["kelas_jasa"] ?? "-";
+          final waktu = item["waktu_pengerjaan"] ?? "0";
+          return {
+            "id_paket_jasa": item["id_paket_jasa"].toString(),
+            "id_jasa": item["id_jasa"].toString(),
+            "jenis_pesanan": jasa["kategori"] ?? "-",
+            "title": kelas,
+            "price": "Rp ${item["harga_paket_jasa"] ?? "0"}",
+            "duration": "${_convertToDays(waktu)} hari",
+            "revision": "${item["maksimal_revisi"]}x",
             "konsep": "2 Konsep",
-            "poster_transparan": true,
-            "konsep_simple": true,
-            "konsep_premium": false,
-            "konsep_3d": false,
-          },
-          {
-            "id_paket_jasa": "8",
-            "id_jasa": "3",
-            "jenis_pesanan": "Poster",
-            "title": "standard",
-            "price": "Rp 200000",
-            "duration": "5 hari",
-            "revision": "5x",
-            "konsep": "2 Konsep", 
-            "poster_transparan": true,
-            "konsep_simple": false,
-            "konsep_premium": true,
-            "konsep_3d": false,
-          },
-          {
-            "id_paket_jasa": "9",
-            "id_jasa": "3",
-            "jenis_pesanan": "Poster",
-            "title": "premium",
-            "price": "Rp 350000",
-            "duration": "7 hari",
-            "revision": "10x",
-            "konsep": "2 Konsep",
-            "poster_transparan": true,
-            "konsep_simple": false,
-            "konsep_premium": true,
-            "konsep_3d": true,
-          }
-        ];
+            "logo_transparan": true,
+            "konsep_simple": kelas == "basic",
+            "konsep_premium": kelas == "standard" || kelas == "premium",
+            "konsep_3d": kelas == "premium",
+          };
+        }).toList();
+
         isLoading = false;
       });
+      
+      print('Poster packages loaded successfully');
+    } catch (e) {
+      print("Error loading packages: $e");
+      // Fallback ke dummy data jika ada error
+      _useDummyData();
     }
+  }
+
+  void _useDummyData() {
+    setState(() {
+      packages = [
+        {
+          "id_paket_jasa": "7",
+          "id_jasa": "3",
+          "jenis_pesanan": "Poster",
+          "title": "basic",
+          "price": "Rp 100000",
+          "duration": "3 hari",
+          "revision": "2x",
+          "konsep": "2 Konsep",
+          "logo_transparan": true,
+          "konsep_simple": true,
+          "konsep_premium": false,
+          "konsep_3d": false,
+        },
+        {
+          "id_paket_jasa": "8",
+          "id_jasa": "3",
+          "jenis_pesanan": "Poster",
+          "title": "standard",
+          "price": "Rp 200000",
+          "duration": "5 hari",
+          "revision": "5x",
+          "konsep": "2 Konsep", 
+          "logo_transparan": true,
+          "konsep_simple": false,
+          "konsep_premium": true,
+          "konsep_3d": false,
+        },
+        {
+          "id_paket_jasa": "9",
+          "id_jasa": "3",
+          "jenis_pesanan": "Poster",
+          "title": "premium",
+          "price": "Rp 350000",
+          "duration": "7 hari",
+          "revision": "10x",
+          "konsep": "2 Konsep",
+          "logo_transparan": true,
+          "konsep_simple": false,
+          "konsep_premium": true,
+          "konsep_3d": true,
+        }
+      ];
+      isLoading = false;
+    });
   }
 
   void _pesanSekarang() {
@@ -167,10 +151,21 @@ class _PosterPackagePageState extends State<JasaDesignPoster>
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading || packages.isEmpty) {
+    // Hapus loading check karena kita langsung load data
+    if (packages.isEmpty) {
+      // Show minimal loading hanya jika benar-benar kosong
       return Scaffold(
         backgroundColor: CustomColors.whiteColor,
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Loading packages...'),
+            ],
+          ),
+        ),
       );
     }
 
@@ -287,7 +282,7 @@ class _PosterPackagePageState extends State<JasaDesignPoster>
                             ...[
                               [
                                 "Poster Transparan",
-                                selected["poster_transparan"]
+                                selected["logo_transparan"]
                               ],
                               ["Konsep Simple", selected["konsep_simple"]],
                               ["Konsep Premium", selected["konsep_premium"]],

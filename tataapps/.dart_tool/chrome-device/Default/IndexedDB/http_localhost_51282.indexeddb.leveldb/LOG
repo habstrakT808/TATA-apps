@@ -1,0 +1,20 @@
+2025/06/24-04:25:10.717 95f8 Creating DB C:\Users\ACER\AppData\Local\Temp\flutter_tools.de99c38f\flutter_tools_chrome_device.3e11c358\Default\IndexedDB\http_localhost_51282.indexeddb.leveldb since it was missing.
+2025/06/24-04:25:10.723 95f8 Reusing MANIFEST C:\Users\ACER\AppData\Local\Temp\flutter_tools.de99c38f\flutter_tools_chrome_device.3e11c358\Default\IndexedDB\http_localhost_51282.indexeddb.leveldb/MANIFEST-000001
+2025/06/24-04:25:10.733 95f8 Level-0 table #5: started
+2025/06/24-04:25:10.739 95f8 Level-0 table #5: 656 bytes OK
+2025/06/24-04:25:10.741 95f8 Delete type=0 #3
+2025/06/24-04:25:10.741 afe0 Manual compaction at level-0 from '\x00\x01\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x02\x00\x00\x00' @ 0 : 0; will stop at (end)
+2025/06/24-04:25:10.828 afe0 Level-0 table #7: started
+2025/06/24-04:25:10.830 afe0 Level-0 table #7: 1695 bytes OK
+2025/06/24-04:25:10.832 afe0 Delete type=0 #4
+2025/06/24-04:25:10.832 afe0 Manual compaction at level-0 from '\x00\x03\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x04\x00\x00\x00' @ 0 : 0; will stop at (end)
+2025/06/24-04:25:20.997 95f8 Level-0 table #9: started
+2025/06/24-04:25:21.000 95f8 Level-0 table #9: 1251 bytes OK
+2025/06/24-04:25:21.002 95f8 Delete type=0 #6
+2025/06/24-04:25:21.002 95f8 Manual compaction at level-0 from '\x00\x04\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x05\x00\x00\x00' @ 0 : 0; will stop at '\x00\x05\x00\x00\xc8\x14\x00f\x00i\x00r\x00e\x00b\x00a\x00s\x00e\x00L\x00o\x00c\x00a\x00l\x00S\x00t\x00o\x00r\x00a\x00g\x00e' @ 115 : 1
+2025/06/24-04:25:21.002 95f8 Compacting 1@0 + 1@1 files
+2025/06/24-04:25:21.004 95f8 Generated table #10@0: 69 keys, 1561 bytes
+2025/06/24-04:25:21.004 95f8 Compacted 1@0 + 1@1 files => 1561 bytes
+2025/06/24-04:25:21.005 95f8 compacted to: files[ 0 1 1 0 0 0 0 ]
+2025/06/24-04:25:21.006 95f8 Delete type=2 #9
+2025/06/24-04:25:21.006 afe0 Manual compaction at level-0 from '\x00\x05\x00\x00\xc8\x14\x00f\x00i\x00r\x00e\x00b\x00a\x00s\x00e\x00L\x00o\x00c\x00a\x00l\x00S\x00t\x00o\x00r\x00a\x00g\x00e' @ 115 : 1 .. '\x00\x05\x00\x00\x00' @ 0 : 0; will stop at (end)

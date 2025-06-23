@@ -126,14 +126,6 @@ class _BuktiPemesananPageState extends State<BuktiPemesananPage> {
                   Positioned(
                     top: 60,
                     left: 20,
-                    child: GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Icon(Icons.arrow_back, color: Colors.white),
-                    ),
-                  ),
-                  Positioned(
-                    top: 60,
-                    left: 70,
                     child: Text(
                       'Pembayaran',
                       style: TextStyle(

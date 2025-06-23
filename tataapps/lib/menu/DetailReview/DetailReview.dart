@@ -102,14 +102,38 @@ class _ReviewDetailPageState extends State<ReviewDetailPage>
                     children: [
                       Hero(
                         tag: 'avatar_${review.name}',
-                        child: CircleAvatar(
-                          radius: 50,
-                          backgroundImage: review.avatarUrl != null
-                              ? NetworkImage(
-                                  Server.UrlImageProfil(review.avatarUrl!))
-                              : const NetworkImage(
-                                      "https://static.vecteezy.com/system/resources/previews/011/490/381/original/happy-smiling-young-man-avatar-3d-portrait-of-a-man-cartoon-character-people-illustration-isolated-on-white-background-vector.jpg")
-                                  as ImageProvider,
+                        child: Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: CustomColors.threertyColor.withOpacity(0.7),
+                            image: review.avatarUrl != null && review.avatarUrl!.isNotEmpty
+                              ? DecorationImage(
+                                  image: NetworkImage(Server.UrlImageProfil(review.avatarUrl!)),
+                                  fit: BoxFit.cover,
+                                  onError: (e, stackTrace) {
+                                    print('Error loading profile image: $e');
+                                  },
+                                )
+                              : null,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 10,
+                                offset: Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          child: review.avatarUrl == null || review.avatarUrl!.isEmpty
+                            ? Center(
+                                child: Icon(
+                                  Icons.person,
+                                  size: 50,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : null,
                         ),
                       ),
                       const SizedBox(height: 18),
