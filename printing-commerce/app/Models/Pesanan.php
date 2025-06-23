@@ -47,24 +47,24 @@ class Pesanan extends Model
     }
     public function fromReview()
     {
-        return $this->hasMany(Review::class, 'id_review');
+        return $this->hasOne(Review::class, 'id_pesanan', 'id_pesanan');
     }
     public function toUser()
     {
-        return $this->belongsTo(User::class, 'id_user');
+        return $this->belongsTo(User::class, 'id_user', 'id_user');
     }
     public function toJasa()
     {
-        return $this->belongsTo(Jasa::class, 'id_jasa');
+        return $this->belongsTo(Jasa::class, 'id_jasa', 'id_jasa');
     }
     public function toPaketJasa()
     {
-        return $this->belongsTo(PaketJasa::class, 'id_paket_jasa');
+        return $this->belongsTo(PaketJasa::class, 'id_paket_jasa', 'id_paket_jasa');
     }
     
     public function toEditor()
     {
-        return $this->belongsTo(Editor::class, 'id_editor');
+        return $this->belongsTo(Editor::class, 'id_editor', 'id_editor');
     }
     
     public function revisions()

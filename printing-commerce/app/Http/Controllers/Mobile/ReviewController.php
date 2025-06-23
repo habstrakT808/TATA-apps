@@ -307,43 +307,111 @@ public function addReviewByUUID(Request $request)
 
 public function getReviews()
 {
-    $reviews = DB::table('review')
-        ->join('pesanan', 'review.id_pesanan', '=', 'pesanan.id_pesanan')
-        ->join('users', 'pesanan.id_user', '=', 'users.id_user')
-        ->join('jasa', 'pesanan.id_jasa', '=', 'jasa.id_jasa')
-        ->join('paket_jasa', 'pesanan.id_paket_jasa', '=', 'paket_jasa.id_paket_jasa')
-        ->select(
-            'review.id_review as id',
-            'users.nama_user as name',
-            DB::raw('CAST(review.rating AS UNSIGNED) as rating'),
-            DB::raw("CONCAT(jasa.kategori, ', ', paket_jasa.nama_paket_jasa) as service"),
-            'review.review as feedback',
-            'users.foto as avatar',
-            'pesanan.uuid as order_uuid',
-            'pesanan.client_confirmed_at as completion_date',
-            'review.created_at as review_date'
-        )
-        ->orderBy('review.created_at', 'desc')
-        ->get()
-        ->map(function ($item) {
+    try {
+        // Query dengan join yang benar sesuai struktur database
+        $reviews = DB::table('review')
+            ->join('pesanan', 'review.id_pesanan', '=', 'pesanan.id_pesanan')
+            ->join('users', 'pesanan.id_user', '=', 'users.id_user')
+            ->join('jasa', 'pesanan.id_jasa', '=', 'jasa.id_jasa')
+            ->select(
+                'review.id_review as id',
+                'users.nama_user as name',
+                'users.name as full_name', // Tambahkan field name juga
+                'users.foto as avatar_url',
+                'review.rating',
+                'review.review as feedback',
+                'jasa.kategori as service',
+                'pesanan.uuid as order_uuid',
+                'pesanan.completed_at as completion_date',
+                'review.created_at as review_date'
+            )
+            ->where('review.rating', '>=', 4) // Hanya review bagus
+            ->whereNotNull('pesanan.completed_at') // Hanya pesanan yang sudah selesai
+            ->orderBy('review.created_at', 'desc')
+            ->limit(10)
+            ->get();
+
+        // Transform data untuk memastikan nama yang tepat
+        $transformedReviews = $reviews->map(function ($review) {
             return [
-                'id' => $item->id,
-                'name' => $item->name,
-                'rating' => (int) $item->rating,
-                'service' => $item->service,
-                'feedback' => $item->feedback,
-                'avatar_url' => $item->avatar ? asset('assets3/img/user/' . $item->avatar) : null,
-                'order_uuid' => $item->order_uuid,
-                'completion_date' => $item->completion_date ? Carbon::parse($item->completion_date)->format('d M Y') : null,
-                'review_date' => Carbon::parse($item->review_date)->format('d M Y')
+                'id' => $review->id,
+                'name' => $review->name ?: $review->full_name ?: 'Pengguna',
+                'avatar_url' => $review->avatar_url,
+                'rating' => (int) $review->rating,
+                'feedback' => $review->feedback,
+                'service' => $review->service,
+                'order_uuid' => $review->order_uuid,
+                'completion_date' => $review->completion_date,
+                'review_date' => $review->review_date
             ];
         });
 
-    return response()->json([
-        'status' => 'success',
-        'data' => $reviews
-    ]);
+        return response()->json([
+            'status' => 'success',
+            'data' => $transformedReviews,
+            'message' => 'Reviews fetched successfully'
+        ]);
+        
+    } catch (\Exception $e) {
+        \Log::error('Error fetching reviews: ' . $e->getMessage());
+        
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Failed to fetch reviews',
+            'error' => $e->getMessage()
+        ], 500);
+    }
 }
+
+    // Method alternatif menggunakan Eloquent
+    public function getReviewsEloquent()
+    {
+        try {
+            $reviews = Review::with([
+                'toPesanan.toUser:id_user,nama_user,name,foto',
+                'toPesanan.toJasa:id_jasa,kategori'
+            ])
+            ->whereHas('toPesanan', function($query) {
+                $query->whereNotNull('completed_at');
+            })
+            ->where('rating', '>=', 4)
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get()
+            ->map(function ($review) {
+                $user = $review->toPesanan->toUser ?? null;
+                $jasa = $review->toPesanan->toJasa ?? null;
+                
+                return [
+                    'id' => $review->id_review,
+                    'name' => $user ? ($user->nama_user ?: $user->name) : 'Pengguna',
+                    'avatar_url' => $user ? $user->foto : null,
+                    'rating' => (int) $review->rating,
+                    'feedback' => $review->review,
+                    'service' => $jasa ? $jasa->kategori : null,
+                    'order_uuid' => $review->toPesanan->uuid ?? null,
+                    'completion_date' => $review->toPesanan->completed_at ?? null,
+                    'review_date' => $review->created_at
+                ];
+            });
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $reviews,
+                'message' => 'Reviews fetched successfully'
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error fetching reviews with Eloquent: ' . $e->getMessage());
+            
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch reviews',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function show($orderId)
     {
         try {

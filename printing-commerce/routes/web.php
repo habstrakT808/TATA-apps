@@ -62,13 +62,11 @@ Route::group(['middleware'=>['auth:sanctum','authorize']], function(){
         //page metode pembayaran
         Route::get('/',[ShowMetodePembayaranController::class,'showAll']);
         Route::get('/detail/{uuid}',[ShowMetodePembayaranController::class,'showDetail']);
-        Route::get('/tambah',[ShowMetodePembayaranController::class,'showTambah']);
         Route::get('/edit/{any}',[ShowMetodePembayaranController::class,'showEdit']);
         Route::get('/edit', function(){
             return redirect('/payment-methods');
         });
         // route for metode pembayaran
-        Route::post('/create',[MetodePembayaranController::class,'createMPembayaran']);
         Route::put('/update',[MetodePembayaranController::class,'updateMPembayaran']);
         Route::delete('/delete',[MetodePembayaranController::class,'deleteMPembayaran']);
     });

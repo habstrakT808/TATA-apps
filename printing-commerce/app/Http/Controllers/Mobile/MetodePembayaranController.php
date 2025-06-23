@@ -73,10 +73,6 @@ class MetodePembayaranController extends Controller
             return 'assets/images/BankBNI.png';
         } elseif (str_contains($namaMetodeLower, 'ovo')) {
             return 'assets/images/OVO.png';
-        } elseif (str_contains($namaMetodeLower, 'bri')) {
-            return 'assets/images/BankBNI.png'; // Using BNI image for BRI temporarily
-        } elseif (str_contains($namaMetodeLower, 'bca')) {
-            return 'assets/images/BankBNI.png'; // Using BNI image for BCA temporarily
         } else {
             return 'assets/images/BankMandiri.png'; // Default
         }

@@ -3,19 +3,20 @@ namespace App\Http\Controllers\Mobile;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\Chat;
-use App\Models\ChatMessage;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use App\Models\User;
 use App\Models\Admin;
+use App\Models\Chat;
+use App\Models\ChatMessage;
 use App\Models\Pesanan;
+use App\Models\Auth as AuthModel;
 use App\Models\Jasa;
 use App\Models\PaketJasa;
 use App\Models\Transaksi;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class ChatController extends Controller
@@ -613,11 +614,79 @@ class ChatController extends Controller
             
             Log::info("User found: {$user->nama_user} (ID: {$user->id_user})");
             
-            // Variabel untuk menyimpan UUID pesanan yang valid
-            $pesananUuid = null;
-            $chat = null;
+            // ✅ PERBAIKAN: Cek apakah ini adalah chat UUID langsung (untuk direct chat)
+            $chat = Chat::where('uuid', $orderId)
+                   ->where('user_id', $user->id_user)
+                   ->first();
             
-            // Strategi pencarian bertingkat:
+            if ($chat) {
+                Log::info("Found direct chat with UUID: $orderId");
+                
+                // Get messages untuk direct chat
+                $messages = ChatMessage::where('chat_uuid', $chat->uuid)
+                           ->orderBy('created_at', 'asc')
+                           ->get();
+                
+                Log::info("Found " . $messages->count() . " messages for direct chat");
+                
+                // Transform messages
+                $transformedMessages = $messages->map(function($message) {
+                    $senderInfo = null;
+                    
+                    if ($message->sender_type === 'user') {
+                        $user = User::where('id_auth', $message->sender_id)->first();
+                        $senderInfo = $user ? [
+                            'id' => $user->id_user,
+                            'name' => $user->nama_user,
+                            'type' => 'user'
+                        ] : null;
+                    } elseif ($message->sender_type === 'admin') {
+                        $admin = Admin::where('id_auth', $message->sender_id)->first();
+                        $senderInfo = $admin ? [
+                            'id' => $admin->id_admin,
+                            'name' => $admin->nama_admin,
+                            'type' => 'admin'
+                        ] : null;
+                    }
+                    
+                    return [
+                        'id' => $message->id,
+                        'uuid' => $message->uuid,
+                        'chat_uuid' => $message->chat_uuid,
+                        'sender_id' => $message->sender_id,
+                        'sender_type' => $message->sender_type,
+                        'sender_info' => $senderInfo,
+                        'message' => $message->message,
+                        'message_type' => $message->message_type,
+                        'file_url' => $message->file_url,
+                        'is_read' => $message->is_read,
+                        'created_at' => $message->created_at,
+                        'updated_at' => $message->updated_at,
+                    ];
+                });
+                
+                // Mark admin messages as read
+                ChatMessage::where('chat_uuid', $chat->uuid)
+                    ->where('sender_type', 'admin')
+                    ->where('is_read', false)
+                    ->update(['is_read' => true]);
+                
+                Log::info("=== GET MESSAGES BY ORDER ID END (DIRECT CHAT) ===");
+                
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Berhasil mendapatkan pesan',
+                    'messages' => $transformedMessages,
+                    'chat_info' => [
+                        'chat_uuid' => $chat->uuid,
+                        'chat_type' => 'direct',
+                        'order_id' => $orderId
+                    ]
+                ]);
+            }
+            
+            // Jika bukan direct chat, lanjutkan dengan logika pencarian pesanan
+            $pesananUuid = null;
             
             // 1. Coba langsung sebagai UUID pesanan
             $pesanan = Pesanan::where('uuid', $orderId)->first();
@@ -640,33 +709,10 @@ class ChatController extends Controller
                 }
             }
             
-            // 3. Coba cari chat yang sudah ada dengan order reference ini
-            if (!$pesananUuid) {
-                $chat = Chat::where('pesanan_uuid', $orderId)
-                    ->where('user_id', $user->id_user)
-                    ->first();
-                if ($chat) {
-                    $pesananUuid = $orderId; // Gunakan order ID sebagai pesanan UUID
-                    Log::info("Found existing chat with order reference: $orderId");
-                }
-            }
-            
-            // 4. Jika masih tidak ketemu, coba cari dengan partial match
-            if (!$pesananUuid) {
-                $pesanan = Pesanan::where('uuid', 'like', "%$orderId%")
-                    ->where('id_user', $user->id_user)
-                    ->first();
-                if ($pesanan) {
-                    $pesananUuid = $pesanan->uuid;
-                    Log::info("Found pesanan with partial match: $pesananUuid");
-                }
-            }
-            
-            // 5. Jika tetap tidak ketemu, buat chat dummy untuk order ID ini
+            // 3. Jika tidak ketemu, return pesan sistem
             if (!$pesananUuid) {
                 Log::warning("Could not find any valid pesanan for order: $orderId");
                 
-                // Return empty messages dengan pesan informasi
                 return response()->json([
                     'status' => 'success',
                     'message' => 'Chat untuk pesanan ini belum tersedia',
@@ -693,12 +739,10 @@ class ChatController extends Controller
                 ]);
             }
             
-            // Cari atau buat chat
-            if (!$chat) {
-                $chat = Chat::where('pesanan_uuid', $pesananUuid)
-                    ->where('user_id', $user->id_user)
-                    ->first();
-            }
+            // Lanjutkan dengan logika pesanan normal...
+            $chat = Chat::where('pesanan_uuid', $pesananUuid)
+                ->where('user_id', $user->id_user)
+                ->first();
             
             if (!$chat) {
                 Log::info("Creating new chat for pesanan: $pesananUuid");
@@ -1665,6 +1709,180 @@ class ChatController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Debug error: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Create a direct chat with admin including product context
+     */
+    public function createDirectChat(Request $request)
+    {
+        try {
+            Log::info('createDirectChat called with data:', $request->all());
+            
+            $validator = Validator::make($request->all(), [
+                'context_type' => 'required|string|in:product_info,general',
+                'context_data' => 'required_if:context_type,product_info|array',
+                'initial_message' => 'nullable|string',
+            ]);
+
+            if ($validator->fails()) {
+                Log::error('Validation failed: ' . $validator->errors()->first());
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $validator->errors()->first()
+                ], 400);
+            }
+
+            $userId = Auth::id();
+            Log::info('User ID from Auth: ' . $userId);
+            
+            $user = User::where('id_auth', $userId)->first();
+            
+            if (!$user) {
+                Log::error('User not found for id_auth: ' . $userId);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak ditemukan'
+                ], 404);
+            }
+            
+            Log::info('Found user: ' . $user->nama_user . ' (ID: ' . $user->id_user . ')');
+            
+            // Find available admin (admin_chat role)
+            $admin = Admin::join('auth', 'admin.id_auth', '=', 'auth.id_auth')
+                    ->where('auth.role', 'admin_chat')
+                    ->inRandomOrder()
+                    ->first();
+            
+            if (!$admin) {
+                Log::info('No admin_chat found, falling back to any admin');
+                // Fallback to any admin if no admin_chat found
+                $admin = Admin::inRandomOrder()->first();
+                
+                if (!$admin) {
+                    Log::error('No admin available');
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Tidak ada admin yang tersedia'
+                    ], 500);
+                }
+            }
+            
+            Log::info('Selected admin: ' . $admin->nama_admin . ' (ID: ' . $admin->id_admin . ')');
+            
+            // Create new chat room
+            $chat = new Chat();
+            $chat->uuid = Str::uuid();
+            $chat->user_id = $user->id_user;
+            $chat->admin_id = $admin->id_admin;
+            $chat->last_message = 'Chat dibuat';
+            $chat->unread_count = 0;
+            $chat->save();
+            
+            Log::info('Created chat room with UUID: ' . $chat->uuid);
+            
+            // Format product context information if available
+            $contextMessage = "";
+            if ($request->context_type == 'product_info' && !empty($request->context_data)) {
+                $productData = $request->context_data;
+                $contextMessage = "--- Info Produk ---\n";
+                
+                if (isset($productData['title'])) {
+                    $contextMessage .= "Paket: " . $productData['title'] . "\n";
+                }
+                
+                if (isset($productData['jenis_pesanan'])) {
+                    $contextMessage .= "Jenis: " . $productData['jenis_pesanan'] . "\n";
+                }
+                
+                if (isset($productData['price'])) {
+                    $contextMessage .= "Harga: " . $productData['price'] . "\n";
+                }
+                
+                if (isset($productData['duration'])) {
+                    $contextMessage .= "Durasi: " . $productData['duration'] . "\n";
+                }
+                
+                if (isset($productData['revision'])) {
+                    $contextMessage .= "Revisi: " . $productData['revision'] . "\n";
+                }
+                
+                $contextMessage .= "-------------------\n\n";
+            }
+            
+            // Create context message from admin
+            if (!empty($contextMessage)) {
+                $adminContextMessage = new ChatMessage();
+                $adminContextMessage->uuid = Str::uuid();
+                $adminContextMessage->chat_uuid = $chat->uuid;
+                $adminContextMessage->sender_id = $admin->id_auth; // Gunakan id_auth
+                $adminContextMessage->sender_type = 'admin';
+                $adminContextMessage->message = $contextMessage;
+                $adminContextMessage->message_type = 'text';
+                $adminContextMessage->is_read = false;
+                $adminContextMessage->save();
+                
+                Log::info('Added context message from admin');
+            }
+            
+            // Create welcome message from admin
+            $welcomeMessage = new ChatMessage();
+            $welcomeMessage->uuid = Str::uuid();
+            $welcomeMessage->chat_uuid = $chat->uuid;
+            $welcomeMessage->sender_id = $admin->id_auth; // Gunakan id_auth
+            $welcomeMessage->sender_type = 'admin';
+            $welcomeMessage->message = "Halo! Ada yang bisa kami bantu terkait produk ini?";
+            $welcomeMessage->message_type = 'text';
+            $welcomeMessage->is_read = false;
+            $welcomeMessage->save();
+            
+            Log::info('Added welcome message from admin');
+            
+            // Create initial message from user if provided
+            if ($request->has('initial_message') && !empty($request->initial_message)) {
+                $userMessage = new ChatMessage();
+                $userMessage->uuid = Str::uuid();
+                $userMessage->chat_uuid = $chat->uuid;
+                $userMessage->sender_id = $user->id_auth; // Gunakan id_auth
+                $userMessage->sender_type = 'user';
+                $userMessage->message = $request->initial_message;
+                $userMessage->message_type = 'text';
+                $userMessage->is_read = false;
+                $userMessage->save();
+                
+                // Update chat's last message
+                $chat->last_message = $request->initial_message;
+                $chat->save();
+                
+                Log::info('Added initial message from user');
+            } else {
+                // Update chat's last message with admin's welcome
+                $chat->last_message = $welcomeMessage->message;
+                $chat->save();
+                
+                Log::info('No initial user message, using admin welcome as last message');
+            }
+            
+            Log::info('Direct chat creation completed successfully');
+            
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Chat langsung berhasil dibuat',
+                'data' => [
+                    'chat_id' => $chat->uuid,
+                    'admin_name' => $admin->nama_admin,
+                ]
+            ], 201);
+            
+        } catch (\Exception $e) {
+            Log::error('Error creating direct chat: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal membuat chat: ' . $e->getMessage()
             ], 500);
         }
     }

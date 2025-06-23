@@ -5,61 +5,83 @@ use App\Models\Jasa;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Models\PaketJasa;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class JasaController extends Controller
 {
- public function show($id = null)
-{
-    try {
-        if ($id) {
-            // Ambil data jasa berdasarkan ID
-            $jasa = Jasa::find($id);
+    public function show($id = null)
+    {
+        // Set timeout yang sangat pendek
+        set_time_limit(5);
+        
+        try {
+            if ($id) {
+                $cacheKey = "jasa_fast_{$id}";
+                
+                return Cache::remember($cacheKey, 300, function () use ($id) {
+                    $jasa = Jasa::select('id_jasa', 'kategori')->find($id);
+                    
+                    if (!$jasa) {
+                        return response()->json([
+                            'status' => 'error',
+                            'message' => 'Service not found',
+                            'data' => null
+                        ], 404);
+                    }
 
-            if (!$jasa) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Service not found',
-                    'data' => null
-                ], 404);
+                    $paketJasa = PaketJasa::select(
+                        'id_paket_jasa', 
+                        'id_jasa', 
+                        'kelas_jasa', 
+                        'harga_paket_jasa', 
+                        'waktu_pengerjaan', 
+                        'maksimal_revisi'
+                    )
+                    ->where('id_jasa', $id)
+                    ->orderBy('harga_paket_jasa', 'asc')
+                    ->get();
+
+                    return response()->json([
+                        'status' => 'success',
+                        'message' => 'Data retrieved successfully',
+                        'data' => [
+                            'jasa' => $jasa,
+                            'paket_jasa' => $paketJasa
+                        ]
+                    ], 200);
+                });
             }
-
-            // Ambil semua paket jasa yang memiliki id_jasa = $id
-            $paketJasa = PaketJasa::where('id_jasa', $id)->get();
-
+        } catch (\Exception $e) {
+            // Return minimal error response
             return response()->json([
-                'status' => 'success',
-                'message' => 'Data retrieved successfully',
-                'data' => [
-                    'jasa' => $jasa,
-                    'paket_jasa' => $paketJasa
-                ]
-            ], 200);
-        } else {
-            // Ambil semua jasa beserta relasi paket jasa masing-masing
-            $jasa = Jasa::with('fromPaketJasa')->get();
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Data retrieved successfully',
-                'data' => $jasa
-            ], 200);
+                'status' => 'error',
+                'message' => 'Server timeout',
+                'data' => null
+            ], 500);
         }
-    } catch (\Exception $e) {
-        \Log::error('Error retrieving jasa data: ' . $e->getMessage());
-
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Failed to retrieve data',
-            'data' => null
-        ], 500);
     }
-}
-
 
     public function showAll()
     {
         try {
-$jasa = Jasa::with('fromPaketJasa')->get();
+            // Gunakan cache untuk mengurangi query database
+            $cacheKey = "all_jasa_packages";
+            
+            $jasa = Cache::remember($cacheKey, 600, function () {
+                return Jasa::with(['fromPaketJasa' => function($query) {
+                    $query->select(
+                        'id_paket_jasa', 
+                        'id_jasa', 
+                        'kelas_jasa', 
+                        'harga_paket_jasa', 
+                        'waktu_pengerjaan', 
+                        'maksimal_revisi'
+                    )->orderBy('harga_paket_jasa', 'asc');
+                }])
+                ->select('id_jasa', 'kategori', 'deskripsi')
+                ->get();
+            });
             
             return response()->json([
                 'status' => 'success',
@@ -87,7 +109,22 @@ $jasa = Jasa::with('fromPaketJasa')->get();
     public function getDetail($id)
     {
         try {
-            $jasa = Jasa::with('fromPaketJasa')->find($id);
+            $cacheKey = "jasa_detail_full_{$id}";
+            
+            $jasa = Cache::remember($cacheKey, 300, function () use ($id) {
+                return Jasa::with(['fromPaketJasa' => function($query) {
+                    $query->select(
+                        'id_paket_jasa', 
+                        'id_jasa', 
+                        'kelas_jasa', 
+                        'harga_paket_jasa', 
+                        'waktu_pengerjaan', 
+                        'maksimal_revisi'
+                    )->orderBy('harga_paket_jasa', 'asc');
+                }])
+                ->select('id_jasa', 'kategori', 'deskripsi', 'created_at', 'updated_at')
+                ->find($id);
+            });
             
             if (!$jasa) {
                 return response()->json([

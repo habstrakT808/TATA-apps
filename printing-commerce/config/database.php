@@ -60,7 +60,17 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                PDO::MYSQL_ATTR_INIT_COMMAND => 'SET sql_mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"',
+                PDO::MYSQL_ATTR_COMPRESS => true,
             ]) : [],
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 10,
+                'connect_timeout' => 10,
+                'wait_timeout' => 3,
+                'heartbeat' => -1,
+                'max_idle_time' => 60,
+            ],
         ],
 
         'pgsql' => [

@@ -14,6 +14,8 @@ use App\Http\Controllers\Mobile\ChatController;
 use App\Http\Controllers\Mobile\PengerjaanController;
 use App\Http\Controllers\Services\ChatController as ServicesChatController;
 use App\Http\Controllers\Api\ChatApiController;
+use App\Http\Controllers\PublicReviewController;
+use App\Http\Controllers\DebugController;
 
 /*
 |--------------------------------------------------------------------------
@@ -35,7 +37,23 @@ Route::prefix('mobile')->group(function () {
     // Public jasa routes (PINDAHKAN KE SINI AGAR TIDAK PERLU AUTH)
     Route::get('jasa', [JasaController::class, 'showAll']);
     Route::get('jasa/{id}', [JasaController::class, 'show']); // PINDAHKAN KE PUBLIC
+
+    // Route public untuk review (tidak memerlukan autentikasi)
+    Route::get('public/reviews', [PublicReviewController::class, 'getPublicReviews']);
+    Route::get('public/reviews/service/{serviceId}', [PublicReviewController::class, 'getReviewsByService']);
 });
+
+// Debug routes
+Route::get('debug/review-data', [DebugController::class, 'checkReviewData']);
+Route::get('debug/test-query', [DebugController::class, 'testReviewQuery']);
+Route::get('debug/routes', [DebugController::class, 'debugRoutes']);
+Route::get('debug/test-direct-chat', [DebugController::class, 'testDirectChat']);
+
+// Mobile public routes
+Route::get('mobile/public/reviews', [PublicReviewController::class, 'getPublicReviews']);
+Route::get('mobile/public/reviews-safe', [PublicReviewController::class, 'getPublicReviewsSafe']);
+Route::get('mobile/public/reviews-fallback', [PublicReviewController::class, 'getFallbackReviews']);
+Route::get('debug/database', [PublicReviewController::class, 'debugDatabase']);
 
 // Protected routes (perlu authentication)
 Route::middleware('auth:sanctum')->group(function () { // HAPUS debug.auth middleware
@@ -63,6 +81,9 @@ Route::middleware('auth:sanctum')->group(function () { // HAPUS debug.auth middl
         Route::post('users/refresh-token', [UserController::class, 'refreshToken']);
         
         // Review routes
+        Route::get('users/review', [ReviewController::class, 'getReviews']);
+        // Route alternatif dengan Eloquent
+        Route::get('users/review-eloquent', [ReviewController::class, 'getReviewsEloquent']);
         Route::get('users/review', [UserController::class, 'getUserReviews']);
         
         // Jasa routes (yang perlu auth)
@@ -120,10 +141,7 @@ Route::middleware('auth:sanctum')->group(function () { // HAPUS debug.auth middl
             Route::post('/create', [ChatController::class, 'createOrGetChatRoom']);
             Route::get('/list', [ChatController::class, 'getChatList']);
             Route::get('/messages', [ChatController::class, 'getMessages']);
-            
-            // ✅ UBAH ROUTE INI - tambahkan prefix untuk membedakan
             Route::get('/messages/order/{orderId}', [ChatController::class, 'getMessagesByOrderId']);
-            
             Route::get('/messages/{pesanan_uuid}', [ChatController::class, 'getMessagesByPesanan']);
             Route::post('/send', [ChatController::class, 'sendMessage']);
             Route::post('/send-by-pesanan', [ChatController::class, 'sendMessageByPesanan']);
@@ -133,7 +151,8 @@ Route::middleware('auth:sanctum')->group(function () { // HAPUS debug.auth middl
             Route::post('/send-notification', [ChatController::class, 'sendNotification']);
             Route::post('/sync-message', [ChatController::class, 'syncMessage']);
             
-            // ✅ DEBUG ROUTE
+            Route::post('/create-direct', [ChatController::class, 'createDirectChat']);
+            
             Route::get('/debug-list', [ChatController::class, 'debugChatList']);
         });
     });

@@ -153,14 +153,8 @@ $tPath = app()->environment('local') ? '' : '';
                 <div class="d-flex align-items-stretch">
                     <div class="card w-100">
                         <div class="card-body p-4">
-                            <div class="d-flex justify-content-start mb-4">
-                                <a href="/payment-methods/tambah" class="btn" id="btnTambah">
-                                    <img src="{{ asset($tPath.'assets2/icon/tambah.svg') }}" alt="Tambah" class="img-fluid">
-                                    <span>Tambah Metode Pembayaran</span>
-                                </a>
-                            </div>
                             <div class="table-responsive">
-                                <table class="table mb-0">
+                                <table class="table table-hover mb-0 align-middle text-nowrap">
                                     <thead>
                                         <tr>
                                             <th>No</th>

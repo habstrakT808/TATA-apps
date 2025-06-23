@@ -20,12 +20,12 @@ return new class extends Migration
         $paymentMethods = [
             [
                 'uuid' => Str::uuid()->toString(),
-                'nama_metode_pembayaran' => 'BRI',
+                'nama_metode_pembayaran' => 'BNI',
                 'no_metode_pembayaran' => '123456789',
                 'deskripsi_1' => 'Rekening Ini digunakan untuk pembayaran',
                 'deskripsi_2' => 'Pastikan transfer ke rekening yang benar',
-                'thumbnail' => 'bri.jpg',
-                'icon' => 'bri-icon.png'
+                'thumbnail' => 'bni.jpg',
+                'icon' => 'bni-icon.png'
             ],
             [
                 'uuid' => Str::uuid()->toString(),
@@ -65,8 +65,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // This could potentially restore previous data if needed
-        // For now, we'll just delete the payment methods we added
-        DB::table('metode_pembayaran')->whereIn('nama_metode_pembayaran', ['BRI', 'Mandiri', 'OVO'])->delete();
+        // No need to restore original data
     }
 };

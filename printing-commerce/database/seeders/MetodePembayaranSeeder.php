@@ -14,11 +14,11 @@ class MetodePembayaranSeeder extends Seeder
         $metodePembayaran = [
             [
                 'uuid' => Str::uuid(),
-                'nama_metode_pembayaran' => 'Bank Mandiri',
-                'no_metode_pembayaran' => '1234567890',
+                'nama_metode_pembayaran' => 'Mandiri',
+                'no_metode_pembayaran' => '987654321',
                 'deskripsi_1' => 'TATA Design Studio',
                 'deskripsi_2' => 'Transfer ke rekening di atas',
-                'thumbnail' => 'mandiri.png',
+                'thumbnail' => 'mandiri.jpg',
                 'icon' => 'mandiri-icon.png',
                 'bahan_poster' => 'Art Paper',
                 'ukuran_poster' => 'A3',
@@ -26,28 +26,28 @@ class MetodePembayaranSeeder extends Seeder
             ],
             [
                 'uuid' => Str::uuid(),
-                'nama_metode_pembayaran' => 'Bank BCA',
-                'no_metode_pembayaran' => '0987654321',
+                'nama_metode_pembayaran' => 'BNI',
+                'no_metode_pembayaran' => '123456789',
                 'deskripsi_1' => 'TATA Design Studio',
                 'deskripsi_2' => 'Transfer ke rekening di atas',
-                'thumbnail' => 'bca.png',
-                'icon' => 'bca-icon.png',
+                'thumbnail' => 'bni.jpg',
+                'icon' => 'bni-icon.png',
                 'bahan_poster' => 'Art Paper',
                 'ukuran_poster' => 'A3',
                 'total_harga_poster' => '150.000',
             ],
             [
                 'uuid' => Str::uuid(),
-                'nama_metode_pembayaran' => 'Bank BRI',
-                'no_metode_pembayaran' => '1122334455',
+                'nama_metode_pembayaran' => 'OVO',
+                'no_metode_pembayaran' => '081234567890',
                 'deskripsi_1' => 'TATA Design Studio',
                 'deskripsi_2' => 'Transfer ke rekening di atas',
-                'thumbnail' => 'bri.png',
-                'icon' => 'bri-icon.png',
+                'thumbnail' => 'ovo.jpg',
+                'icon' => 'ovo-icon.png',
                 'bahan_poster' => 'Art Paper',
                 'ukuran_poster' => 'A3',
                 'total_harga_poster' => '150.000',
-            ],
+            ]
         ];
 
         DB::table('metode_pembayaran')->insert($metodePembayaran);

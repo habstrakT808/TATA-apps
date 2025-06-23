@@ -18,6 +18,7 @@ use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Mobile\ChatController;
+use Illuminate\Support\Facades\Auth;
 
 class PesananController extends Controller
 {
@@ -533,54 +534,35 @@ class PesananController extends Controller
     }
 
     /**
-     * Get order info for chat - simplified version
+     * Get order information for chat context
      */
-    public function getOrderInfo(Request $request, $uuid)
+    public function getOrderInfo($uuid)
     {
         try {
-            // Check if user exists
-            if (!$request->user() || !$request->user()->id_auth) {
-                Log::error('User not authenticated or id_auth is null');
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Anda perlu login kembali'
-                ], 401);
-            }
+            $userId = Auth::id();
+            $user = User::where('id_auth', $userId)->first();
             
-            // Get user ID safely
-            $user = User::where('id_auth', $request->user()->id_auth)->first();
             if (!$user) {
-                Log::error('User not found for auth ID: ' . $request->user()->id_auth);
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'User tidak ditemukan, silakan login kembali'
+                    'message' => 'User tidak ditemukan'
                 ], 404);
             }
-            $userId = $user->id_user;
             
-            // Strategy untuk mencari pesanan
+            // Cari pesanan berdasarkan UUID
             $pesanan = Pesanan::where('uuid', $uuid)
-                ->where('id_user', $userId)
-                ->with(['toJasa', 'toPaketJasa', 'fromTransaksi.toMetodePembayaran'])
-                ->first();
+                              ->where('id_user', $user->id_user)
+                              ->first();
             
-            // 2. Jika tidak ketemu, coba cari di transaksi
             if (!$pesanan) {
+                // Coba cari berdasarkan transaksi
                 $transaksi = Transaksi::where('order_id', $uuid)->first();
+                
                 if ($transaksi) {
-                    $pesanan = Pesanan::where('id_pesanan', $transaksi->id_pesanan)
-                        ->where('id_user', $userId)
-                        ->with(['toJasa', 'toPaketJasa', 'fromTransaksi.toMetodePembayaran'])
-                        ->first();
+                    $pesanan = Pesanan::where('uuid', $transaksi->pesanan_uuid)
+                                     ->where('id_user', $user->id_user)
+                                     ->first();
                 }
-            }
-            
-            // 3. Jika masih tidak ketemu, coba partial match
-            if (!$pesanan) {
-                $pesanan = Pesanan::where('uuid', 'like', "%$uuid%")
-                    ->where('id_user', $userId)
-                    ->with(['toJasa', 'toPaketJasa', 'fromTransaksi.toMetodePembayaran'])
-                    ->first();
             }
             
             if (!$pesanan) {
@@ -589,106 +571,47 @@ class PesananController extends Controller
                     'message' => 'Pesanan tidak ditemukan'
                 ], 404);
             }
-
-            // ✅ PERBAIKAN UTAMA: AMBIL METODE PEMBAYARAN YANG BENAR
-            $metodePembayaran = 'Virtual Account Mandiri'; // Default
             
-            if ($pesanan->fromTransaksi && $pesanan->fromTransaksi->isNotEmpty()) {
-                // Ambil transaksi terbaru, bukan yang pertama
-                $transaksi = $pesanan->fromTransaksi->sortByDesc('created_at')->first();
-                
-                if ($transaksi && $transaksi->toMetodePembayaran) {
-                    $namaMetode = $transaksi->toMetodePembayaran->nama_metode_pembayaran;
-                    
-                    // ✅ HANDLE KASUS BRI FALLBACK
-                    if ($namaMetode === 'BRI' && $this->isPossibleFallbackCase($pesanan, $transaksi)) {
-                        // Jika kemungkinan ini adalah hasil fallback, coba deteksi metode yang sebenarnya
-                        $metodePembayaran = $this->detectActualPaymentMethod($pesanan, $transaksi);
-                        
-                        Log::warning('🚨 Detected possible BRI fallback', [
-                            'pesanan_uuid' => $pesanan->uuid,
-                            'transaksi_id' => $transaksi->id_transaksi,
-                            'detected_method' => $metodePembayaran,
-                            'original_method' => $namaMetode
-                        ]);
-                    } else {
-                        $metodePembayaran = $namaMetode;
-                    }
-                    
-                    Log::info('✅ Payment method resolved', [
-                        'pesanan_uuid' => $pesanan->uuid,
-                        'final_method' => $metodePembayaran,
-                        'is_fallback_detected' => $namaMetode === 'BRI' && $metodePembayaran !== 'BRI'
-                    ]);
-                }
-            }
-
-            // Format response
-            $orderInfo = [
-                'order_id' => $uuid,
-                'pesanan_uuid' => $pesanan->uuid,
-                'jasa' => [
-                    'kategori' => $pesanan->toJasa ? ucfirst($pesanan->toJasa->kategori) : 'Logo',
-                    'nama_jasa' => $pesanan->toJasa ? $pesanan->toJasa->nama_jasa : 'Desain Logo',
-                ],
-                'paket' => [
-                    'kelas_jasa' => $pesanan->toPaketJasa ? ucfirst($pesanan->toPaketJasa->kelas_jasa) : 'Premium',
-                    'harga' => $pesanan->toPaketJasa ? $pesanan->toPaketJasa->harga_paket_jasa : 0,
-                ],
-                'metode_pembayaran' => $metodePembayaran,
-                'status_pesanan' => $pesanan->status_pesanan,
-                'created_at' => $pesanan->created_at,
-            ];
-
+            // Get jasa dan paket jasa
+            $jasa = Jasa::find($pesanan->id_jasa);
+            $paketJasa = PaketJasa::find($pesanan->id_paket_jasa);
+            $metodePembayaran = MetodePembayaran::find($pesanan->id_metode_pembayaran);
+            
+            // Get transaksi info
+            $transaksi = Transaksi::where('id_pesanan', $pesanan->id_pesanan)->first();
+            
             return response()->json([
                 'status' => 'success',
                 'message' => 'Info pesanan berhasil diambil',
-                'data' => $orderInfo
-            ], 200);
+                'data' => [
+                    'order_id' => $transaksi ? $transaksi->order_id : $uuid,
+                    'pesanan_uuid' => $pesanan->uuid,
+                    'status' => $pesanan->status_pesanan,
+                    'jasa' => [
+                        'id' => $jasa->id_jasa ?? null,
+                        'kategori' => $jasa->kategori ?? 'Unknown',
+                        'nama' => $jasa->nama_jasa ?? 'Unknown'
+                    ],
+                    'paket' => [
+                        'id' => $paketJasa->id_paket_jasa ?? null,
+                        'kelas_jasa' => $paketJasa->kelas_jasa ?? 'Unknown',
+                        'harga' => $paketJasa->harga_paket_jasa ?? 0,
+                        'waktu_pengerjaan' => $paketJasa->waktu_pengerjaan ?? 'Unknown'
+                    ],
+                    'metode_pembayaran' => $metodePembayaran->nama_metode ?? 'Unknown',
+                    'total_harga' => $pesanan->total_harga,
+                    'created_at' => $pesanan->created_at,
+                    'updated_at' => $pesanan->updated_at
+                ]
+            ]);
             
         } catch (\Exception $e) {
             Log::error('Error getting order info: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal mengambil info pesanan: ' . $e->getMessage()
             ], 500);
         }
-    }
-    
-    // ✅ TAMBAHKAN HELPER METHODS INI:
-    private function isPossibleFallbackCase($pesanan, $transaksi)
-    {
-        // Deteksi apakah ini kemungkinan hasil fallback ke BRI
-        return (
-            $transaksi->toMetodePembayaran->nama_metode_pembayaran === 'BRI' &&
-            $pesanan->created_at > '2024-06-01' && // Setelah tanggal tertentu
-            $transaksi->id_metode_pembayaran == 1 // ID 1 biasanya record pertama (BRI)
-        );
-    }
-
-    private function detectActualPaymentMethod($pesanan, $transaksi)
-    {
-        // Strategi deteksi metode pembayaran yang sebenarnya
-        
-        // 1. Cek dari catatan pesanan atau deskripsi
-        if ($pesanan->deskripsi && stripos($pesanan->deskripsi, 'ovo') !== false) {
-            return 'OVO';
-        }
-        
-        // 2. Cek dari order_id pattern (jika ada)
-        if ($transaksi->order_id && stripos($transaksi->order_id, 'OVO') !== false) {
-            return 'OVO';
-        }
-        
-        // 3. Cek berdasarkan waktu pembuatan (contoh: OVO populer di periode tertentu)
-        if ($pesanan->created_at >= '2024-06-01') {
-            // Untuk pesanan baru, kemungkinan besar OVO
-            return 'OVO';
-        }
-        
-        // 4. Default tetap BRI jika tidak ada indikasi lain
-        return 'BRI';
     }
 
     /**

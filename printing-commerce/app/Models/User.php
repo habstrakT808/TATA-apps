@@ -32,7 +32,8 @@ class User extends Model
         'email_verified_at',
         'created_at',
         'updated_at',
-        'id_auth'
+        'id_auth',
+        'foto'
     ];
     public function fromVerifikasi()
     {
@@ -40,11 +41,26 @@ class User extends Model
     }
     public function fromPesanan()
     {
-        return $this->hasMany(Pesanan::class, 'id_pesanan');
+        return $this->hasMany(Pesanan::class, 'id_user');
     }
     public function toAuth()
     {
         return $this->belongsTo(Auth::class, 'id_auth');
+    }
+    public function reviews()
+    {
+        return $this->hasManyThrough(
+            Review::class,
+            Pesanan::class,
+            'id_user',
+            'id_pesanan',
+            'id_user',
+            'id_pesanan'
+        );
+    }
+    public function getAvatarUrlAttribute()
+    {
+        return $this->foto;
     }
     /**
      * Update FCM token untuk user ini
